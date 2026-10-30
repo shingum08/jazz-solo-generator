@@ -13,8 +13,8 @@ const songSel=$('#songSel');
   const order=Object.keys(GRP);
   Object.keys(groups).sort((a,b)=>order.indexOf(a)-order.indexOf(b)).forEach(c=>{
     const og=document.createElement('optgroup');og.label=GRP[c]||c;
-    groups[c].sort((x,y)=>x[1].n.localeCompare(y[1].n)).forEach(([id,s])=>{
-      const o=document.createElement('option');o.value=id;o.textContent=s.name;
+    groups[c].sort((x,y)=>(x[1].name||x[1].n||'').localeCompare(y[1].name||y[1].n||'')).forEach(([id,s])=>{
+      const o=document.createElement('option');o.value=id;o.textContent=s.name||s.n||id;
       if(id===cur.selProg)o.selected=true;og.appendChild(o);
     });
     songSel.appendChild(og);
@@ -38,7 +38,7 @@ Object.entries(STYLE_DATA.profiles).forEach(([k,p])=>{
 });
 styleSel.onchange=()=>{cur.style=styleSel.value;updStyleDesc();regen()};
 const STYLE_NOTE={all:'WJD 전체 347개 스윙 솔로의 평균 — 무난한 출발점',parker:'비밥 · 코드톤 강박 최고(67%), 짧고 촘촘한 프레이즈',cbrown:'하드밥 · 8분음표 라인이 가장 길게 이어짐(79%)',rollins:'하드밥 · 짧은 프레이즈와 넉넉한 쉼',dgordon:'하드밥 · 뒤로 눕는 스윙(레이백)',baker:'쿨 · 크로매틱 최소(14%), 노래하는 긴 호흡',getz:'쿨 · 매끄러운 8분 라인',miles:'여백 · 쉼이 가장 긴 유형(중앙값 3.2박)',lyoung:'스윙 · 긴 프레이즈, 여유로운 레이백'};
-function updStyleDesc(){const p=STYLE_DATA.profiles[cur.style];$('#styleDesc').textContent=(STYLE_NOTE[cur.style]||'')+' — 근거: 솔로 '+p.solos+'개 · 음 '+p.n.toLocaleString()+'개'}
+function updStyleDesc(){const p=STYLE_DATA.profiles[cur.style];$('#styleDesc').textContent=(STYLE_NOTE[cur.style]||'')+' — 근거: 솔로 '+p.solos+'개 · 음 '+(p.name||0).toLocaleString()+'개'}
 updStyleDesc();
 
 /* ── 조 변환 (반음 단위) ── */

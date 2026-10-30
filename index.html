@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>즉흥 악보 생성기 v0.12 — 화성 분석 · 타깃음 라인 · 연주자 스타일</title>
+<title>즉흥 악보 생성기 v0.13 — 화성 분석 · 타깃음 라인 · 연주자 스타일</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Sans+KR:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
@@ -551,7 +551,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
 <body>
 <header class="site">
   <div class="wrap">
-    <div class="eyebrow">Concept Prototype · v0.12</div>
+    <div class="eyebrow">Concept Prototype · v0.13</div>
     <h1>즉흥 악보 생성기</h1>
     <p class="sub">리얼북 필수 <b style="color:var(--brass);font-weight:500">100곡</b>의 코드 진행 위에 매번 새로운 연습용 솔로를 만듭니다. 곡 검색 · 아티스트 스타일 · 반음 단위 조 변환을 지원합니다.</p>
     <p class="lede">곡을 고르고 → 연주자 스타일을 고르고 → 조를 옮기고 → 생성. 끝입니다. 고른 스타일의 <b>리듬 습관·음 선택·호흡</b>이 그대로 생성 확률에 반영됩니다.</p>
@@ -607,8 +607,8 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
 
 <section class="how">
   <div class="wrap">
-    <h2>v0.12 엔진이 한 소절을 만드는 순서</h2>
-    <p class="lead">v0.11까지는 "지금 이 코드에 어울리는 음"을 한 음씩 확률로 골랐습니다. 이 방식에서는 라인에 방향이 생기지 않습니다. 실제 연주자는 <b style="color:var(--txt)">다음 코드에서 어디에 도착할지</b>를 먼저 정하고 그쪽으로 걸어갑니다. v0.12는 이 순서를 그대로 따릅니다.</p>
+    <h2>v0.13 엔진이 한 소절을 만드는 순서</h2>
+    <p class="lead">v0.11까지는 "지금 이 코드에 어울리는 음"을 한 음씩 확률로 골랐습니다. 이 방식에서는 라인에 방향이 생기지 않습니다. 실제 연주자는 <b style="color:var(--txt)">다음 코드에서 어디에 도착할지</b>를 먼저 정하고 그쪽으로 걸어갑니다. v0.13는 이 순서를 그대로 따릅니다.</p>
     <div class="layers">
       <div class="layer"><div class="n">STEP 1 · 화성 분석</div><h4>코드의 기능 읽기</h4><p>D7→Gm이면 "단조로 가는 Ⅴ" → ♭9·♭13 사용. G♭7→F면 트라이톤 대리 → 리디안 ♭7. 해결되는 maj7은 Ⅰ, Ⅳ 자리는 리디안. 같은 7th 코드라도 가는 곳에 따라 스케일이 달라집니다.</p></div>
       <div class="layer"><div class="n">STEP 2 · 호흡</div><h4>프레이즈·쉼 계획</h4><p>연주자별 실측 프레이즈 길이와 쉼 길이 분포로 호흡을 정하고, 8마디 형식 경계 직전에 종지하도록 맞춥니다. 목관은 최대 2마디마다 숨을 쉽니다.</p></div>
@@ -1595,8 +1595,8 @@ const songSel=$('#songSel');
   const order=Object.keys(GRP);
   Object.keys(groups).sort((a,b)=>order.indexOf(a)-order.indexOf(b)).forEach(c=>{
     const og=document.createElement('optgroup');og.label=GRP[c]||c;
-    groups[c].sort((x,y)=>x[1].n.localeCompare(y[1].n)).forEach(([id,s])=>{
-      const o=document.createElement('option');o.value=id;o.textContent=s.name;
+    groups[c].sort((x,y)=>(x[1].name||x[1].n||'').localeCompare(y[1].name||y[1].n||'')).forEach(([id,s])=>{
+      const o=document.createElement('option');o.value=id;o.textContent=s.name||s.n||id;
       if(id===cur.selProg)o.selected=true;og.appendChild(o);
     });
     songSel.appendChild(og);
@@ -1620,7 +1620,7 @@ Object.entries(STYLE_DATA.profiles).forEach(([k,p])=>{
 });
 styleSel.onchange=()=>{cur.style=styleSel.value;updStyleDesc();regen()};
 const STYLE_NOTE={all:'WJD 전체 347개 스윙 솔로의 평균 — 무난한 출발점',parker:'비밥 · 코드톤 강박 최고(67%), 짧고 촘촘한 프레이즈',cbrown:'하드밥 · 8분음표 라인이 가장 길게 이어짐(79%)',rollins:'하드밥 · 짧은 프레이즈와 넉넉한 쉼',dgordon:'하드밥 · 뒤로 눕는 스윙(레이백)',baker:'쿨 · 크로매틱 최소(14%), 노래하는 긴 호흡',getz:'쿨 · 매끄러운 8분 라인',miles:'여백 · 쉼이 가장 긴 유형(중앙값 3.2박)',lyoung:'스윙 · 긴 프레이즈, 여유로운 레이백'};
-function updStyleDesc(){const p=STYLE_DATA.profiles[cur.style];$('#styleDesc').textContent=(STYLE_NOTE[cur.style]||'')+' — 근거: 솔로 '+p.solos+'개 · 음 '+p.n.toLocaleString()+'개'}
+function updStyleDesc(){const p=STYLE_DATA.profiles[cur.style];$('#styleDesc').textContent=(STYLE_NOTE[cur.style]||'')+' — 근거: 솔로 '+p.solos+'개 · 음 '+(p.name||0).toLocaleString()+'개'}
 updStyleDesc();
 
 /* ── 조 변환 (반음 단위) ── */
@@ -1820,8 +1820,15 @@ function popAct(act){
   cur.abc=toAbc(cur.solo,+$('#bpm').value,cur.selTrans||0);
   renderSheet();
 }
+
+$('#btnPlay').onclick=()=>{
+  if($('#btnPlay').textContent.indexOf('정지')>=0){stopAll();$('#btnPlay').textContent='▶ 재생'}
+  else if(typeof playAll==='function'){playAll();$('#btnPlay').textContent='■ 정지'}
+};
 gen();
-
-
+</script>
+<script>
+window.addEventListener('error',e=>{try{const d=document.createElement('div');d.style.cssText='position:fixed;bottom:8px;left:8px;background:#a03b25;color:#fff;padding:8px 12px;z-index:99;font-size:12px;border-radius:6px';d.textContent='오류: '+e.message;document.body.appendChild(d)}catch(_){}});
+</script>
 </body>
 </html>

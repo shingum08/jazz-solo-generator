@@ -1,0 +1,1583 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>즉흥 악보 생성기 v0.12 — 화성 분석 · 타깃음 라인 · 연주자 스타일</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Sans+KR:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/abcjs@6.4.4/dist/abcjs-basic-min.js"></script>
+<style>
+:root{
+  --bg:#10161f;
+  --panel:#1a2230;
+  --panel-2:#151d29;
+  --line:#2a3547;
+  --paper:#f6f2e8;
+  --paper-edge:#e5ddc9;
+  --ink:#252a22;
+  --ink-soft:#6b6f60;
+  --brass:#d1a545;
+  --brass-deep:#a97f22;
+  --rose:#c26d5a;
+  --mut:#8b94a3;
+  --txt:#e8e4d8;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  background:var(--bg);
+  color:var(--txt);
+  font-family:'IBM Plex Sans KR',sans-serif;
+  font-weight:300;
+  line-height:1.6;
+  min-height:100vh;
+}
+.wrap{max-width:1120px;margin:0 auto;padding:0 24px}
+header.site{padding:56px 0 8px}
+.eyebrow{
+  font-family:'JetBrains Mono',monospace;
+  font-size:12px;letter-spacing:.18em;
+  color:var(--brass);text-transform:uppercase;
+}
+h1{
+  font-family:'Gowun Batang',serif;
+  font-size:clamp(30px,4.6vw,46px);
+  font-weight:700;color:var(--paper);
+  margin:10px 0 6px;line-height:1.25;
+}
+.sub{color:var(--mut);font-size:15.5px;max-width:560px}
+.lede{
+  border-left:2px solid var(--brass);
+  padding:6px 0 6px 16px;margin:28px 0 34px;
+  color:var(--txt);font-size:15.5px;max-width:640px;
+}
+.lede b{color:var(--brass);font-weight:500}
+main{display:grid;grid-template-columns:320px 1fr;gap:28px;padding-bottom:24px}
+@media(max-width:880px){main{grid-template-columns:1fr}}
+.panel{
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:14px;
+  padding:22px 20px;
+  height:fit-content;
+  position:sticky;top:24px;
+}
+@media(max-width:880px){.panel{position:static}}
+.panel h2{
+  font-family:'Gowun Batang',serif;font-size:19px;
+  color:var(--paper);font-weight:700;margin-bottom:4px;
+}
+.panel .hint{font-size:12.5px;color:var(--mut);margin-bottom:18px}
+.field{margin-bottom:18px}
+.field>label{
+  display:block;font-family:'JetBrains Mono',monospace;
+  font-size:11px;letter-spacing:.14em;color:var(--brass);
+  text-transform:uppercase;margin-bottom:7px;
+}
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.seg button{
+  flex:1 1 auto;min-width:44px;
+  background:var(--panel-2);color:var(--txt);
+  border:1px solid var(--line);border-radius:8px;
+  padding:8px 10px;font-family:inherit;font-size:13.5px;
+  cursor:pointer;transition:all .15s;
+}
+.seg button:hover{border-color:var(--brass)}
+.seg button.on{
+  background:var(--brass);color:#1d1608;
+  border-color:var(--brass);font-weight:600;
+}
+input[type=range]{width:100%;accent-color:var(--brass);cursor:pointer}
+.bpmval{font-family:'JetBrains Mono',monospace;color:var(--brass);font-size:14px}
+.actions{display:flex;flex-direction:column;gap:9px;margin-top:22px}
+.btn{
+  border:none;border-radius:9px;padding:13px 16px;
+  font-family:inherit;font-size:15px;font-weight:600;
+  cursor:pointer;transition:transform .12s,filter .12s;
+}
+.btn:active{transform:scale(.98)}
+.btn.primary{background:var(--brass);color:#1d1608}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.ghost{
+  background:transparent;color:var(--brass);
+  border:1px solid var(--brass-deep);
+}
+.btn.ghost:hover{background:rgba(209,165,69,.09)}
+.btn.play{background:var(--rose);color:#fff}
+.btn.play:hover{filter:brightness(1.08)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.stage{min-width:0}
+.paper{
+  background:var(--paper);
+  background-image:
+    linear-gradient(rgba(0,0,0,.028) 1px,transparent 1px);
+  background-size:100% 34px;
+  color:var(--ink);
+  border-radius:6px;
+  box-shadow:0 24px 60px rgba(0,0,0,.55),0 2px 0 var(--paper-edge) inset;
+  padding:30px 30px 24px;
+  min-height:420px;
+  position:relative;
+}
+.paper::before{
+  content:"";position:absolute;inset:0;
+  background:radial-gradient(120% 90% at 50% -10%,rgba(209,165,69,.10),transparent 55%);
+  border-radius:6px;pointer-events:none;
+}
+.paper-head{
+  display:flex;justify-content:space-between;align-items:baseline;
+  border-bottom:1.5px solid rgba(37,42,34,.25);
+  padding-bottom:10px;margin-bottom:14px;
+}
+.paper-head .t{font-family:'Gowun Batang',serif;font-weight:700;font-size:18px}
+.paper-head .m{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--ink-soft)}
+#staff{width:100%}
+#staff svg{width:100%;height:auto}
+#staff .fallback{
+  font-family:'JetBrains Mono',monospace;font-size:13px;
+  color:var(--ink);white-space:pre-wrap;line-height:2;
+}
+.empty{
+  display:flex;align-items:center;justify-content:center;
+  min-height:300px;color:var(--ink-soft);
+  font-family:'Gowun Batang',serif;font-size:16px;text-align:center;
+}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:14px 0 0}
+.chips .bar{
+  font-family:'JetBrains Mono',monospace;font-size:11px;
+  border:1px solid rgba(37,42,34,.3);border-radius:6px;
+  padding:3px 8px;color:var(--ink-soft);transition:all .1s;
+}
+.chips .bar.lit{
+  background:var(--brass);color:#1d1608;
+  border-color:var(--brass);font-weight:600;
+}
+.analysis{margin-top:22px}
+.analysis h3{
+  font-family:'Gowun Batang',serif;font-size:16px;
+  color:var(--paper);font-weight:700;margin-bottom:10px;
+}
+.tagrow{display:flex;flex-wrap:wrap;gap:7px}
+.tag{
+  font-size:12.5px;background:var(--panel);
+  border:1px solid var(--line);border-radius:20px;
+  padding:4px 12px;color:var(--txt);
+}
+.tag b{color:var(--brass);font-weight:600;font-family:'JetBrains Mono',monospace;font-size:11px;margin-right:6px}
+.harmlist{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:6px}
+.harm{font-size:12.5px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 10px;color:var(--txt)}
+.harm b{color:var(--brass);font-family:'JetBrains Mono',monospace;font-weight:600;font-size:11px;margin-right:6px}
+.harm span{color:var(--mut)}
+.statrow{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+.stat{background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:8px 12px;min-width:110px}
+.stat .v{font-family:'JetBrains Mono',monospace;color:var(--brass);font-size:17px;font-weight:600}
+.stat .k{font-size:11.5px;color:var(--mut)}
+.saved{margin-top:26px}
+.saved h3{
+  font-family:'Gowun Batang',serif;font-size:16px;
+  color:var(--paper);font-weight:700;margin-bottom:4px;
+}
+.saved .note{font-size:12.5px;color:var(--mut);margin-bottom:12px}
+.slist{display:flex;flex-direction:column;gap:8px}
+.sitem{
+  display:flex;justify-content:space-between;align-items:center;
+  background:var(--panel);border:1px solid var(--line);
+  border-radius:10px;padding:10px 14px;
+}
+.sitem .nm{font-size:13.5px}
+.sitem .nm b{color:var(--brass);font-weight:600}
+.sitem button{
+  background:none;border:1px solid var(--line);color:var(--mut);
+  border-radius:7px;padding:5px 10px;font-family:inherit;font-size:12px;cursor:pointer;
+}
+.sitem button:hover{border-color:var(--brass);color:var(--brass)}
+.none{font-size:13px;color:var(--mut)}
+section.how{padding:48px 0 30px;border-top:1px solid var(--line)}
+section.how h2{
+  font-family:'Gowun Batang',serif;font-size:24px;
+  color:var(--paper);font-weight:700;margin-bottom:8px;
+}
+section.how p.lead{color:var(--mut);font-size:14.5px;max-width:640px;margin-bottom:26px}
+.layers{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px;margin-bottom:30px}
+.layer{
+  background:var(--panel);border:1px solid var(--line);
+  border-radius:12px;padding:18px;
+}
+.layer .n{
+  font-family:'JetBrains Mono',monospace;font-size:11px;
+  color:var(--brass);letter-spacing:.14em;
+}
+.layer h4{
+  font-family:'Gowun Batang',serif;font-size:17px;
+  color:var(--paper);font-weight:700;margin:6px 0 6px;
+}
+.layer p{font-size:13px;color:var(--mut)}
+.lvl{width:100%;border-collapse:collapse;margin-top:4px}
+.lvl th,.lvl td{
+  text-align:left;font-size:13px;
+  padding:9px 12px;border-bottom:1px solid var(--line);
+}
+.lvl th{
+  font-family:'JetBrains Mono',monospace;font-weight:600;font-size:11px;
+  letter-spacing:.12em;color:var(--brass);text-transform:uppercase;
+}
+.lvl td:first-child{color:var(--brass);font-family:'JetBrains Mono',monospace;white-space:nowrap}
+.lvl td{color:var(--txt)}
+footer{padding:26px 0 46px;color:var(--mut);font-size:12.5px}
+footer b{color:var(--txt);font-weight:500}
+button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+@keyframes deal{from{opacity:0;transform:translateY(14px) rotate(.4deg)}to{opacity:1;transform:none}}
+.paper.deal{animation:deal .35s ease}
+/* 음 편집 팝오버(v0.5) */
+.editpop{
+  position:absolute;display:none;z-index:6;
+  background:#fffdf6;color:var(--ink);
+  border:1px solid var(--brass-deep);border-radius:10px;
+  box-shadow:0 12px 32px rgba(0,0,0,.38);
+  padding:9px 11px;max-width:290px;
+}
+.editpop .popinfo{font-family:'JetBrains Mono',monospace;font-size:11.5px;margin-bottom:7px;color:var(--ink)}
+.editpop .warn{font-size:11.5px;color:#a03b25;font-weight:600;margin-bottom:6px}
+.editpop .popbtns{display:flex;flex-wrap:wrap;gap:5px}
+.editpop .popbtns button{
+  border:1px solid rgba(37,42,34,.3);background:#fff;color:var(--ink);
+  border-radius:7px;padding:5px 9px;font-family:inherit;font-size:12px;cursor:pointer;
+}
+.editpop .popbtns button:hover{border-color:var(--brass);color:var(--brass-deep)}
+.notehead-sel{fill:var(--rose)!important;stroke:var(--rose)!important}
+</style>
+</head>
+<body>
+<header class="site">
+  <div class="wrap">
+    <div class="eyebrow">Concept Prototype · v0.12</div>
+    <h1>즉흥 악보 생성기</h1>
+    <p class="sub">v0.12는 엔진을 다시 짰습니다. 코드의 <b style="color:var(--brass);font-weight:500">기능</b>(Ⅱ·Ⅴ·Ⅰ, 단조 Ⅴ, 트라이톤 대리…)을 먼저 분석하고, 코드가 바뀌는 다운비트에 <b style="color:var(--brass);font-weight:500">가이드톤(3·7음)</b>을 목표로 정한 뒤 그 앞을 어프로치·인클로저로 역산해 채웁니다. 리듬·음 분포·프레이즈 길이는 Weimar Jazz Database 전사 솔로 456개의 실측 통계를 씁니다.</p>
+    <p class="lede">이제 "어울리는 음"을 고르는 것보다 <b>어디로 가는지</b>를 먼저 정합니다. 마음에 드는 연주자 스타일을 골라 보세요 — 그 연주자의 <b>리듬 습관·음 선택·호흡 길이</b>가 생성 확률에 반영됩니다.</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <aside class="panel">
+    <h2>연습 설정</h2>
+    <p class="hint">조건을 고르고 아래에서 생성하세요.</p>
+
+    <div class="field">
+      <label>악기 분류</label>
+      <div class="seg" id="segInst"></div>
+      <p class="hint" id="instDesc" style="margin-top:8px"></p>
+    </div>
+
+    <div class="field">
+      <label>코드 진행 · 곡</label>
+      <div class="seg" id="segProg"></div>
+    </div>
+    <div class="field">
+      <label>조 (Key)</label>
+      <div class="seg" id="segKey"></div>
+      <p class="hint" id="keyHint" style="margin-top:8px"></p>
+    </div>
+    <div class="field">
+      <label>난이도</label>
+      <div class="seg" id="segDiff"></div>
+      <p class="hint" id="diffDesc" style="margin-top:8px"></p>
+    </div>
+    <div class="field">
+      <label>연주자 스타일</label>
+      <div class="seg" id="segStyle"></div>
+      <p class="hint" id="styleDesc" style="margin-top:8px"></p>
+    </div>
+    <div class="field">
+      <label>어휘 셀 (릭)</label>
+      <div class="seg" id="segLick"></div>
+      <p class="hint" style="margin-top:8px">2박짜리 공통 음형을 화성에 맞게 넣습니다 — WJD에서 4명 이상의 연주자가 공통으로 쓴 셀 + 교본 어휘(1-2-3-5, 3 to 9 등). 음형은 그대로 보존합니다.</p>
+    </div>
+    <div class="field">
+      <label>음역군 규칙</label>
+      <div class="seg" id="segGroup"></div>
+      <p class="hint" style="margin-top:8px">켜면 4마디 단위로 C4–B4 / C5–B♭5 음역을 유지합니다(연습용 제약). 끄면 라인이 음역을 자유롭게 오갑니다.</p>
+    </div>
+    <div class="field">
+      <label>멜로디 음색</label>
+      <div class="seg" id="segTone"></div>
+      <p class="hint" style="margin-top:8px">재생되는 솔로 선율의 소리 — 플뤼겔혼(부드러운 관악기)과 클라리넷(속이 빈 나무 소리)을 신디사이저로 흉내 냈습니다. 악보 표기는 변하지 않습니다.</p>
+    </div>
+    <div class="field">
+      <label>기보</label>
+      <div class="seg" id="segNot"></div>
+      <p class="hint" style="margin-top:8px">테너 색소폰 등 B♭ 악기 연주자용 — 악보가 기보 음정(한 옥타브 위 B♭)으로 표시됩니다</p>
+    </div>
+    <div class="field">
+      <label>템포 <span class="bpmval" id="bpmVal">100 BPM</span></label>
+      <input type="range" id="bpm" min="70" max="170" value="100" step="2">
+    </div>
+    <div class="field">
+      <label>반주 음량 <span class="bpmval" id="bvVal">90%</span></label>
+      <input type="range" id="backvol" min="0" max="150" value="90" step="5">
+      <p class="hint" style="margin-top:6px">드럼·베이스·피아노 반주의 크기 — 다음 재생부터 적용됩니다</p>
+    </div>
+
+    <div class="field">
+      <label>음 편집</label>
+      <p class="hint">악보의 음표·쉼표를 클릭하면 그 음만 고칠 수 있습니다 — 반음·옥타브 이동, 쉼표 전환. 편집은 설정을 바꿔도 유지되고, 「악보 생성」을 누르면 새 솔로로 시작합니다.</p>
+    </div>
+    <div class="actions">
+      <button class="btn primary" id="btnGen">악보 생성</button>
+      <button class="btn play" id="btnPlay" disabled>▶ 반주와 함께 재생</button>
+      <button class="btn ghost" id="btnSave" disabled>♡ 이 솔로 저장하기</button>
+    </div>
+  </aside>
+
+  <section class="stage">
+    <div class="paper" id="paper">
+      <div class="paper-head">
+        <span class="t" id="paperTitle">아직 악보가 없습니다</span>
+        <span class="m" id="paperMeta"></span>
+      </div>
+      <div id="staff"><div class="empty">「악보 생성」 버튼을 누르면<br>이 종이 위에 새로운 솔로가 쓰입니다.</div></div>
+      <div class="chips" id="chips"></div>
+      <div class="editpop" id="editPop"></div>
+    </div>
+
+    <div class="analysis" id="analysisBox" style="display:none">
+      <h3>이 솔로가 사용한 기법</h3>
+      <div class="tagrow" id="tagRow"></div>
+    </div>
+    <div class="analysis" id="harmBox" style="display:none">
+      <h3>화성 분석 — 엔진이 읽은 코드의 기능과 스케일</h3>
+      <div class="harmlist" id="harmList"></div>
+    </div>
+
+    <div class="saved">
+      <h3>저장한 솔로</h3>
+      <p class="note">프로토타입이라 브라우저를 새로고침하면 목록이 지워집니다. 정식 버전에서는 계정에 영구 저장됩니다.</p>
+      <div class="slist" id="savedList"><div class="none">아직 저장한 솔로가 없습니다.</div></div>
+    </div>
+  </section>
+</main>
+
+<section class="how">
+  <div class="wrap">
+    <h2>v0.12 엔진이 한 소절을 만드는 순서</h2>
+    <p class="lead">v0.11까지는 "지금 이 코드에 어울리는 음"을 한 음씩 확률로 골랐습니다. 이 방식에서는 라인에 방향이 생기지 않습니다. 실제 연주자는 <b style="color:var(--txt)">다음 코드에서 어디에 도착할지</b>를 먼저 정하고 그쪽으로 걸어갑니다. v0.12는 이 순서를 그대로 따릅니다.</p>
+    <div class="layers">
+      <div class="layer"><div class="n">STEP 1 · 화성 분석</div><h4>코드의 기능 읽기</h4><p>D7→Gm이면 "단조로 가는 Ⅴ" → ♭9·♭13 사용. G♭7→F면 트라이톤 대리 → 리디안 ♭7. 해결되는 maj7은 Ⅰ, Ⅳ 자리는 리디안. 같은 7th 코드라도 가는 곳에 따라 스케일이 달라집니다.</p></div>
+      <div class="layer"><div class="n">STEP 2 · 호흡</div><h4>프레이즈·쉼 계획</h4><p>연주자별 실측 프레이즈 길이와 쉼 길이 분포로 호흡을 정하고, 8마디 형식 경계 직전에 종지하도록 맞춥니다. 목관은 최대 2마디마다 숨을 쉽니다.</p></div>
+      <div class="layer"><div class="n">STEP 3 · 리듬</div><h4>박 단위 마르코프</h4><p>WJD 전사에서 잰 "이 박에서 다음 박으로 어떤 리듬이 오나" 확률로 리듬을 만듭니다. 붙임줄로 마디선을 넘는 당김음과 엇박 진입이 자연스럽게 생깁니다.</p></div>
+      <div class="layer"><div class="n">STEP 4 · 타깃음</div><h4>가이드톤에 착지</h4><p>코드가 바뀌는 다운비트에 3음·7음을 먼저 정합니다. 직전 음과 반음·온음 거리면 가중치를 높여 보이스리딩이 이어지게 합니다.</p></div>
+      <div class="layer"><div class="n">STEP 5 · 역산</div><h4>어프로치 · 인클로저</h4><p>타깃 앞 1~2음을 반음 아래 어프로치, 스케일 위 어프로치, 위-아래 감싸기(인클로저)로 채웁니다. 크로매틱음은 약박에서 반음 진행으로만 씁니다.</p></div>
+      <div class="layer"><div class="n">STEP 6 · 어휘</div><h4>공통 셀 + 음 분포</h4><p>남은 자리는 연주자 프로필의 "코드 대비 음 분포(강박·약박)"와 "음정 분포"로 채우고, 4명 이상 연주자가 공통으로 쓴 셀을 음형 그대로 넣습니다.</p></div>
+    </div>
+    <table class="lvl">
+      <tr><th>난이도</th><th>리듬</th><th>음 선택</th><th>목표</th></tr>
+      <tr><td>1 · 입문</td><td>4분·2분음표, 2박 단위 진입</td><td>코드톤만 · 코드 전환점에서 가이드톤으로</td><td>3·7음 보이스리딩을 귀와 손에 익히기</td></tr>
+      <tr><td>2 · 중급</td><td>8분음표 라인, 엇박 진입, 붙임줄 당김음</td><td>강박 = 코드톤/텐션, 약박 = 스케일음 · 반음·스케일 어프로치</td><td>"도착하는" 라인 만들기</td></tr>
+      <tr><td>3 · 심화</td><td>비밥 밀도, 8분 3연음</td><td>인클로저, 크로매틱 통과음, 얼터드 텐션, 실측 셀</td><td>비밥 어법의 실전 밀도</td></tr>
+    </table>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <b>데이터 출처와 저작권</b> — 연주자 스타일 통계와 공통 셀은 <b>Weimar Jazz Database v2.1</b>(Jazzomat Research Project, HfM Weimar · Open Database License 1.0)에서 추출했습니다. 앱에는 원 전사 음표열이 들어 있지 않습니다. 담긴 것은 확률 분포(리듬 전이·코드 대비 음 분포·음정·프레이즈 길이·스윙비)와, 4명 이상의 연주자가 공통으로 쓴 4~5음 음형(공용 어휘)뿐입니다. 특정 솔로를 재현하지 않습니다. 상업화할 때는 ODbL의 출처 표기·동일 조건 공유 조항을 다시 검토해야 합니다. 수록 곡은 <b>코드 진행만</b> 반영했고 원곡 멜로디는 넣지 않았습니다. <b>v0 한계</b> — 소리는 간단한 신디사이저입니다. 철자(♯/♭)는 코드 기준으로 단순화했습니다. 스윙비는 WJD 실측 템포별 중앙값(약 0.63 → 0.54)을 따릅니다.
+  </div>
+</footer>
+
+<script id="engine">
+/* ═══════════ 음악 엔진 v0.12 (UI와 분리 · 순수 로직) ═══════════
+   v0.11 → v0.12 핵심 변경
+   ① 화성 분석: 코드 종류만이 아니라 "기능"을 읽는다 (Ⅱ·Ⅴ→장조/단조·트라이톤 대리·Ⅳ 리디안·토닉 마이너)
+      → 코드마다 코드-스케일·텐션·가이드톤(3·7음)을 따로 배정
+   ② 타깃음 라인: 코드가 바뀌는 다운비트에 가이드톤을 먼저 정하고, 그 앞 1~2음을
+      반음 어프로치·스케일 어프로치·인클로저로 "역산"해 채운다 (비밥 라인의 기본 원리)
+   ③ 리듬: 반마디 템플릿 대신 박 단위 마르코프 체인 — Weimar Jazz Database 실측 전이 확률
+   ④ 프레이즈: 고정 8마디 대신 실측 길이·쉼 분포(연주자별)로 호흡을 계획, 형식 경계에 종지 정렬
+   ⑤ 음 선택: 연주자 프로필의 "코드 대비 음 분포(강박/약박)"와 "음정 분포"를 가중치로 사용
+   ⑥ 릭: 음형(contour)을 보존하도록 배치 — v0.11은 음마다 따로 옥타브를 맞춰 음형이 깨졌음
+   ⑦ 표기: 마디선을 넘는 붙임줄, 박 단위 분할, 마디 내 임시표 지속 규칙 반영 */
+'use strict';
+
+const CHORD_TYPES = {
+  'maj7': {iv:[0,4,7,11],   scale:[0,2,4,5,7,9,11],   sname:'이오니안(메이저)'},
+  'm7':   {iv:[0,3,7,10],   scale:[0,2,3,5,7,9,10],   sname:'도리안'},
+  '7':    {iv:[0,4,7,10],   scale:[0,2,4,5,7,9,10],   sname:'믹솔리디안'},
+  'm7b5': {iv:[0,3,6,10],   scale:[0,1,3,5,6,8,10],   sname:'로크리안'},
+  'dim7': {iv:[0,3,6,9],    scale:[0,2,3,5,6,8,9,11], sname:'디미니시(온음-반음)'},
+  '6':    {iv:[0,4,7,9],    scale:[0,2,4,5,7,9,11],   sname:'메이저'},
+  'm6':   {iv:[0,3,7,9],    scale:[0,2,3,5,7,9,11],   sname:'멜로딕 마이너'},
+  '9':    {iv:[0,4,7,10],   scale:[0,2,4,5,7,9,10],   sname:'믹솔리디안'},
+  '7b9':  {iv:[0,4,7,10],   scale:[0,1,4,5,7,8,10],   sname:'하모닉 마이너 5모드(♭9·♭13)'},
+  '7#9':  {iv:[0,4,7,10],   scale:[0,1,3,4,6,8,10],   sname:'얼터드(♭9·♯9·♭13)'}
+};
+const TYPE_CLS={'maj7':'maj','6':'maj','m7':'min','m6':'min','7':'dom','9':'dom','7b9':'domalt','7#9':'domalt','m7b5':'hdim','dim7':'dim'};
+
+/* 진행: o = 조의 으뜸음에서 반음 거리, t = 코드 종류. 한 마디에 코드 1~2개. (v0.11과 동일) */
+const PROGS = {
+  autumnLeaves:{name:'♪ Autumn Leaves (Gm)', fixedKey:7, form:{phrase:8,sections:'AABA'}, bars:[
+    [{o:5,t:'m7'}],[{o:10,t:'9'}],[{o:3,t:'maj7'}],[{o:8,t:'maj7'}],
+    [{o:2,t:'m7b5'}],[{o:7,t:'7b9'}],[{o:0,t:'m6'}],[{o:0,t:'m6'}],
+    [{o:5,t:'m7'}],[{o:10,t:'9'}],[{o:3,t:'maj7'}],[{o:8,t:'maj7'}],
+    [{o:2,t:'m7b5'}],[{o:7,t:'7b9'}],[{o:0,t:'m6'}],[{o:0,t:'m6'}],
+    [{o:2,t:'m7b5'}],[{o:7,t:'7b9'}],[{o:0,t:'m6'}],[{o:0,t:'m6'}],
+    [{o:5,t:'m7'}],[{o:10,t:'7'}],[{o:3,t:'maj7'}],[{o:8,t:'maj7'}],
+    [{o:2,t:'m7b5'}],[{o:7,t:'7b9'}],[{o:0,t:'m7'},{o:6,t:'7'}],[{o:5,t:'m7'},{o:4,t:'7'}],
+    [{o:3,t:'7'}],[{o:2,t:'7#9'}],[{o:0,t:'m6'}],[{o:0,t:'m6'}]]},
+  allOfMe:{name:'♪ All of Me (C)', fixedKey:0, form:{phrase:8,sections:'ABAC'}, bars:[
+    [{o:0,t:'maj7'}],[{o:0,t:'maj7'}],[{o:4,t:'7'}],[{o:4,t:'7'}],
+    [{o:9,t:'7'}],[{o:9,t:'7'}],[{o:2,t:'m7'}],[{o:2,t:'m7'}],
+    [{o:4,t:'7'}],[{o:4,t:'7'}],[{o:9,t:'m7'}],[{o:9,t:'m7'}],
+    [{o:2,t:'7'}],[{o:2,t:'7'}],[{o:2,t:'m7'}],[{o:7,t:'7'}],
+    [{o:0,t:'maj7'}],[{o:0,t:'maj7'}],[{o:4,t:'7'}],[{o:4,t:'7'}],
+    [{o:9,t:'7'}],[{o:9,t:'7'}],[{o:2,t:'m7'}],[{o:2,t:'m7'}],
+    [{o:5,t:'6'}],[{o:5,t:'m6'}],[{o:0,t:'maj7'},{o:4,t:'m7'}],[{o:9,t:'7'}],
+    [{o:2,t:'m7'}],[{o:7,t:'7'}],[{o:0,t:'6'}],[{o:0,t:'6'}]]},
+  p251: {name:'메이저 Ⅱ-Ⅴ-Ⅰ', form:{phrase:8,sections:'A'}, bars:[
+    [{o:2,t:'m7'},{o:7,t:'7'}],[{o:0,t:'maj7'}],[{o:2,t:'m7'},{o:7,t:'7'}],[{o:0,t:'maj7'}],
+    [{o:9,t:'m7'},{o:2,t:'7'}],[{o:7,t:'m7'},{o:0,t:'7'}],[{o:5,t:'maj7'}],[{o:5,t:'maj7'}]]},
+  blues:{name:'블루스 12마디', form:{phrase:4,sections:'AAB'}, bars:[
+    [{o:0,t:'7'}],[{o:5,t:'7'}],[{o:0,t:'7'}],[{o:0,t:'7'}],
+    [{o:5,t:'7'}],[{o:5,t:'7'}],[{o:0,t:'7'}],[{o:0,t:'7'}],
+    [{o:2,t:'m7'}],[{o:7,t:'7'}],[{o:0,t:'7'}],[{o:0,t:'7'}]]},
+  autumn:{name:'마이너 Ⅱ-Ⅴ 연쇄', form:{phrase:8,sections:'A'}, bars:[
+    [{o:5,t:'m7'}],[{o:10,t:'7'}],[{o:3,t:'maj7'}],[{o:8,t:'maj7'}],
+    [{o:9,t:'m7b5'}],[{o:7,t:'7'}],[{o:0,t:'m7'}],[{o:0,t:'m7'}]]}
+};
+const KEY_ROOTS = [['C',0],['F',5],['B♭',10],['E♭',3],['G',7],['D',2],['A',9]];
+const DIFFS = [
+  {name:'1 · 입문', desc:'4분·2분음표 · 코드톤만 — 코드가 바뀔 때 가장 가까운 3음·7음으로 옮겨 가는 "가이드톤 라인" 연습'},
+  {name:'2 · 중급', desc:'8분음표 라인 · 엇박 진입 — 스케일음으로 걷다가 다음 코드의 가이드톤에 반음·온음 어프로치로 착지'},
+  {name:'3 · 심화', desc:'비밥 밀도 · 3연음 — 인클로저, 크로매틱 통과음, 얼터드 텐션(♭9·♭13), 실측 공통 셀'}
+];
+const INSTRUMENTS = [
+  {id:'brass', name:'금관', desc:'트럼펫·트롬본 계열 — B3 이하 최소화, 5도 초과 도약 차단, 프레이즈 최대 3마디'},
+  {id:'wind',  name:'목관', desc:'색소폰·클라리넷·플루트 — 프레이즈 최대 2마디 + 1박 이상 호흡. 음역·도약 규칙은 금관과 동일'},
+  {id:'free',  name:'기타·건반', desc:'기타·피아노 등 — 연주 제약이 적어 전 음역을 자유롭게 사용'}
+];
+
+/* ── 기본 어휘(교본 공통 어법) ──
+   특정 녹음의 전사가 아니라 재즈 교육에서 일반화된 음형. s=코드 뿌리 기준 시작 음도, iv=음정 열(반음). */
+const CURATED_CELLS=[
+  {cls:'dom',s:0,iv:[2,2,3],name:'1-2-3-5 (콜트레인 셀)'},
+  {cls:'maj',s:0,iv:[2,2,3],name:'1-2-3-5 (콜트레인 셀)'},
+  {cls:'min',s:0,iv:[2,1,4],name:'1-2-♭3-5 (마이너 셀)'},
+  {cls:'dom',s:4,iv:[3,3,4],name:'3-5-♭7-9 (3 to 9 아르페지오)'},
+  {cls:'domalt',s:4,iv:[3,3,3],name:'3-5-♭7-♭9 (♭9 아르페지오)'},
+  {cls:'maj',s:4,iv:[3,4,3],name:'3-5-7-9 (상부 구조)'},
+  {cls:'min',s:3,iv:[4,3,4],name:'♭3-5-♭7-9 (상부 구조)'},
+  {cls:'dom',s:0,iv:[-1,-1,-2],name:'1-7-♭7-6 (비밥 도미넌트 하행)',minDiff:3},
+  {cls:'dom',s:10,iv:[-1,-1,-1],name:'♭7-6-♭6-5 (크로매틱 하행)',minDiff:3},
+  {cls:'hdim',s:0,iv:[3,3,4],name:'1-♭3-♭5-♭7 (하프디미니시 아르페지오)'},
+  {cls:'hdim',s:10,iv:[-4,-3,-3],name:'♭7-♭5-♭3-1 (하행 아르페지오)'},
+  {cls:'maj',s:7,iv:[-3,-2,-2],name:'5-3-2-1 (하행 셀)'},
+  /* 코드를 건너는 셀(4음 + 다음 코드 다운비트 착지) */
+  {cls:'min',to:'dom',tr:5,s:0,iv:[3,4,3,-1],name:'Ⅱ: 1-♭3-5-♭7 → Ⅴ의 3음'},
+  {cls:'dom',to:'maj',tr:5,s:4,iv:[3,3,3,-1],name:'Ⅴ: 3-5-♭7-♭9 → Ⅰ의 5음',minDiff:3},
+  {cls:'domalt',to:'min',tr:5,s:4,iv:[3,3,3,-1],name:'Ⅴ: 3-5-♭7-♭9 → ⅰ의 5음'},
+  {cls:'dom',to:'maj',tr:5,s:7,iv:[-2,-1,-2,-2],name:'Ⅴ: 5-4-3-2 → Ⅰ의 1음'}
+];
+
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function pickW(rng,cands){
+  let s=0;for(const c of cands)s+=c.w;
+  if(!(s>0))return cands.length?cands[0].v:null;
+  let r=rng()*s;
+  for(const c of cands){r-=c.w;if(r<=0)return c.v}
+  return cands[cands.length-1].v;
+}
+function nearest(arr,x){return arr.reduce((a,c)=>Math.abs(c-x)<Math.abs(a-x)?c:a,arr[0])}
+function barChords(prog,keyPc){return prog.bars.map(bar=>bar.map(c=>({root:((keyPc+c.o)%12+12)%12,type:c.t})))}
+const mod12=x=>((x%12)+12)%12;
+
+function chordToneMidis(rootPc,type,lo,hi){
+  const out=[];
+  for(let m=lo-(lo%12)-12;m<=hi+12;m+=12)for(const iv of CHORD_TYPES[type].iv){
+    const m2=m+rootPc+iv;if(m2>=lo&&m2<=hi&&!out.includes(m2))out.push(m2);
+  }
+  return out.sort((a,b)=>a-b);
+}
+
+/* ── ① 화성 분석 ───────────────────────────────────────────────
+   마디 → 코드 구간(segment). 각 구간에 기능·스케일·코드톤·가이드톤·텐션을 배정한다. */
+const CHORD_NAME=['C','D♭','D','E♭','E','F','G♭','G','A♭','A','B♭','B'];
+const SUF={maj7:'maj7',m7:'m7','7':'7',m7b5:'m7♭5',dim7:'dim7','6':'6',m6:'m6','9':'9','7b9':'7♭9','7#9':'7♯9'};
+function chordSymbol(rootPc,type){return CHORD_NAME[mod12(rootPc)]+SUF[type]}
+function analyzeHarmony(bars,keyPc){
+  const segs=[];
+  bars.forEach((bar,b)=>bar.forEach((ch,k)=>{
+    const t0=b*24+(bar.length===1?0:k*12);
+    segs.push({bar:b,t0,dur:bar.length===1?24:12,root:ch.root,type:ch.type});
+  }));
+  /* 같은 코드가 이어지면 하나로 합친다(긴 코드 → 내부 타깃 계획에 사용) */
+  const merged=[];
+  for(const s of segs){
+    const L=merged[merged.length-1];
+    if(L&&L.root===s.root&&L.type===s.type){L.dur+=s.dur}else merged.push({...s});
+  }
+  merged.forEach((s,i)=>{
+    const nx=merged[(i+1)%merged.length],pv=merged[(i-1+merged.length)%merged.length];
+    const cls0=TYPE_CLS[s.type];
+    const toNext=mod12(nx.root-s.root);
+    let cls=cls0,scale=CHORD_TYPES[s.type].scale.slice(),fn='',tens=[],sname=CHORD_TYPES[s.type].sname;
+    if(cls0==='dom'){
+      if(toNext===5&&(TYPE_CLS[nx.type]==='min'||TYPE_CLS[nx.type]==='hdim')){
+        cls='domalt';scale=[0,1,4,5,7,8,10];tens=[1,8];fn='Ⅴ→단조';sname='하모닉 마이너 5모드(♭9·♭13)';
+      }else if(toNext===5){
+        fn='Ⅴ→'+(TYPE_CLS[nx.type]==='maj'?'장조':'다음 코드');tens=[2,9];sname='믹솔리디안';
+      }else if(toNext===11){
+        scale=[0,2,4,6,7,9,10];tens=[2,6,9];fn='트라이톤 대리(♭Ⅱ7)';sname='리디안 ♭7';
+      }else{
+        fn='블루스/정지 도미넌트';tens=[2,9];sname='믹솔리디안 + 블루노트(♭3)';s.blue=true;
+      }
+    }else if(cls0==='domalt'){
+      tens=s.type==='7#9'?[1,3,8]:[1,8];fn=toNext===5?'Ⅴ→해결':'얼터드 도미넌트';
+    }else if(cls0==='maj'){
+      const resolved=mod12(s.root-pv.root)===5&&TYPE_CLS[pv.type]&&TYPE_CLS[pv.type].startsWith('dom');
+      if(!resolved&&s.type==='maj7'&&mod12(s.root-pv.root)===5&&TYPE_CLS[pv.type]==='maj'){
+        scale=[0,2,4,6,7,9,11];fn='Ⅳ(리디안)';sname='리디안(♯11)';tens=[2,6,9];
+      }else{fn=resolved?'Ⅰ(해결)':'장조 토닉';tens=[2,9];}
+    }else if(cls0==='min'){
+      if(toNext===5&&TYPE_CLS[nx.type]&&TYPE_CLS[nx.type].startsWith('dom')){fn='Ⅱ';scale=[0,2,3,5,7,9,10];sname='도리안';tens=[2,5]}
+      else if(s.type==='m6'||mod12(s.root-keyPc)===0){fn='ⅰ(토닉 마이너)';scale=[0,2,3,5,7,9,11];sname='멜로딕 마이너';tens=[2,9]}
+      else{fn='마이너';tens=[2,5]}
+    }else if(cls0==='hdim'){fn=toNext===5?'ⅱø(단조 Ⅱ)':'하프디미니시';tens=[5]}
+    else if(cls0==='dim'){fn='경과 디미니시';tens=[2,5,8,11]}
+    s.cls=cls;s.scale=scale;s.fn=fn;s.tens=tens;s.sname=sname;
+    s.ct=CHORD_TYPES[s.type].iv.slice();
+    s.guide=s.ct.filter(iv=>iv===3||iv===4||iv===10||iv===11||(s.type==='6'&&iv===9)||(s.type==='m6'&&iv===9));
+    s.label=chordSymbol(s.root,s.type)+(fn?' · '+fn:'')+' · '+sname;
+  });
+  return merged;
+}
+
+/* ── 리듬 토큰(박 단위) ──
+   Q=박 위 4분 · E=8분 2개 · Uh=앞음 지속+엇박 진입(당김) · Ur=쉼+엇박 진입 · T=8분 3연음 · H=지속 · R=쉼 */
+const TOK=['R','H','Q','E','Ur','Uh','T','Tr'];
+const NOTE_TOK={Q:1,E:1,Ur:1,Uh:1,T:1};
+const ALLOWED=[null,{Q:1,H:1,R:1},{Q:1,H:1,R:1,E:1,Ur:1,Uh:1},{Q:1,H:1,R:1,E:1,Ur:1,Uh:1,T:1}];
+
+function sampleQuart(rng,q,lo,hi){ /* 사분위 [Q1,Q2,Q3] → 대략적 분포 샘플 */
+  const r=rng();let v;
+  if(r<0.25)v=q[0]-(q[1]-q[0])*rng()*0.8;
+  else if(r<0.5)v=q[0]+(q[1]-q[0])*rng();
+  else if(r<0.75)v=q[1]+(q[2]-q[1])*rng();
+  else v=q[2]+(q[2]-q[1])*rng()*0.8;
+  return Math.max(lo,Math.min(hi,v));
+}
+
+/* ── 메인 생성기 ── */
+function generateSolo(progId,keyPc,diff,seed,inst,opts){
+  opts=opts||{};
+  const useLicks=opts.useLicks!==false;
+  const useGroups=opts.groups!==false;
+  inst=inst||'free';
+  const SD=(typeof STYLE_DATA!=='undefined')?STYLE_DATA:null;
+  const styleId=(opts.style&&SD&&SD.profiles[opts.style])?opts.style:'all';
+  const PF=SD?SD.profiles[styleId]:null;
+  const RG={brass:[59,82],wind:[59,82],free:[52,86]}[inst];
+  const LO=RG[0],HI=RG[1];
+  const rng=mulberry32(seed||Date.now());
+  const prog=PROGS[progId];
+  const bars=barChords(prog,keyPc);
+  const NB=bars.length,TOT=NB*24;
+  const form=prog.form||{phrase:8,sections:'A'};
+  const P=form.phrase,sec=form.sections,nPh=Math.ceil(NB/P);
+  const roles=[];{const seen={};for(let p=0;p<nPh;p++){const L=sec[p]||'A';roles.push(L==='B'?'contrast':(L==='C'?'resolution':(seen[L]?'answer':'statement')));seen[L]=true}}
+  const segs=analyzeHarmony(bars,keyPc);
+  const segAt=t=>{t=Math.min(t,TOT-1);for(let i=segs.length-1;i>=0;i--)if(segs[i].t0<=t)return i;return 0};
+  const tagsAt=[...Array(NB)].map(()=>[]);
+  const tag=(b,s)=>{if(b>=0&&b<NB&&!tagsAt[b].includes(s))tagsAt[b].push(s)};
+  const lickUse={};
+  const stats={targets:0,guideHits:0,enc:0,appr:0,chrom:0,cells:0};
+
+  /* 음역군(금관·목관, v0.3 규칙 유지 · 끌 수 있음) */
+  const groupOf=m=>m>=60&&m<=71?'A':(m>=72&&m<=83?'B':null);
+  const plans=[];
+  if(inst!=='free'&&useGroups){
+    let last=rng()<0.5?'A':'B';
+    for(let b=0;b<NB;b+=8){
+      const ph=Math.floor(b/P),role=roles[ph]||'statement';
+      const first=last;let second=rng()<0.5?first:(first==='A'?'B':'A');
+      if(role==='contrast'&&second==='A'&&rng()<0.7)second='B';
+      if((role==='resolution'||b+8>=NB)&&second==='B'&&rng()<0.5)second='A';
+      plans.push({first,second});last=second;
+      tag(b,'음역군 '+first);if(second!==first)tag(b+4,'음역군 전환 '+first+'→'+second);
+    }
+  }
+  const allow=(m,t)=>{
+    if(m<LO||m>HI)return false;
+    if(inst==='free'||!useGroups)return true;
+    const b=Math.min(NB-1,Math.floor(t/24)),pl=plans[Math.floor(b/8)];
+    const g=groupOf(m),act=b%8<4?pl.first:pl.second;
+    return g===act||((b%8===4||b%8===5)&&g===pl.first);
+  };
+  const centerAt=t=>{
+    if(inst==='free'||!useGroups)return inst==='free'?70:71;
+    const b=Math.min(NB-1,Math.floor(t/24)),pl=plans[Math.floor(b/8)];
+    return (b%8<4?pl.first:pl.second)==='A'?66:77;
+  };
+  const MAXLEAP=inst==='free'?12:7;
+
+  /* ── ④ 프레이즈 계획 ── */
+  const phLenQ=PF?PF.stats.phLen:[4.2,7.1,13.1],gapQ=PF?PF.stats.gap:[1.2,2,3.1];
+  const capBeats=inst==='wind'?8:(inst==='brass'?12:16);
+  const lenScale=[0,0.75,0.9,1][diff];
+  const phrases=[];
+  let beat=rng()<0.6?0:(diff===1?2:1);
+  const totalBeats=NB*4;
+  while(beat<totalBeats-1){
+    let L=Math.round(sampleQuart(rng,phLenQ.map(x=>x*lenScale),diff===1?3:3,Math.min(capBeats,diff===1?7:capBeats)));
+    if(diff===1){beat=Math.ceil(beat/2)*2;}
+    let end=beat+L; /* 마지막 음이 시작되는 박(포함) */
+    /* 형식 경계(8마디·블루스 4마디)에 가까우면 그 직전에 종지하도록 맞춘다 */
+    const secBeats=P*4;
+    const nextB=Math.ceil((beat+1)/secBeats)*secBeats;
+    if(nextB<totalBeats&&end>=nextB-3&&end<=nextB+3){end=nextB-2+(rng()<0.4?1:0);if(end-beat<2)end=beat+2}
+    if(end>totalBeats-1)end=totalBeats-1;
+    if(end<=beat)break;
+    phrases.push({s:beat,e:end});
+    let g=sampleQuart(rng,gapQ,diff===1?2:1,6);
+    if(inst==='wind')g=Math.max(g,1.2);
+    beat=end+1+Math.round(g);
+    /* 곡 첫 박 근처로 새 섹션을 시작하도록 — 섹션 경계 1박 전(픽업)이나 경계에서 */
+    const nb2=Math.ceil(beat/secBeats)*secBeats;
+    if(nb2-beat<=2&&nb2-beat>0&&rng()<0.6)beat=nb2-(diff>=2&&rng()<0.5?1:0);
+  }
+  /* 마지막 프레이즈는 마지막 마디 1박에서 길게 끝나도록 */
+  if(phrases.length){
+    const lp=phrases[phrases.length-1];
+    lp.e=Math.max(lp.s+1,totalBeats-4);lp.final=true;
+    if(lp.e-lp.s>capBeats+4){phrases.push({s:lp.e-Math.min(capBeats,6),e:lp.e,final:true});lp.e=lp.e-Math.min(capBeats,6)-2;lp.final=false;if(lp.e<=lp.s)phrases.splice(phrases.length-2,1)}
+  }
+
+  /* ── ③ 리듬 생성(박 단위 마르코프) ── */
+  const RH=PF?PF.rhy:null;
+  const transRow=(bp,prev)=>{
+    if(!RH)return {Q:1,E:2,H:0.6,R:0.4,Uh:0.6,Ur:0.4,T:0.2};
+    const row=RH[String(bp)][prev]||RH[String(bp)]['E'],o={};
+    TOK.forEach((t,i)=>{const k=t==='Tr'?'T':t;o[k]=(o[k]||0)+row[i]*(t==='Tr'?0.5:1)});
+    return o;
+  };
+  const events=[]; /* {t,d,midi,trip,ph,strong,first,last} */
+  let motif=null;
+  phrases.forEach((ph,pi)=>{
+    const toks=[];
+    const secIdx=Math.floor(ph.s/(P*4)),role=roles[secIdx]||'statement';
+    const recall=motif&&role==='answer'&&ph.s%(P*4)<4&&rng()<0.65;
+    let prev='R';
+    for(let bt=ph.s;bt<=ph.e;bt++){
+      const bp=(bt%4)+1,isFirst=bt===ph.s,isLast=bt===ph.e;
+      if(recall&&bt-ph.s<motif.toks.length){toks.push(motif.toks[bt-ph.s]);prev=toks[toks.length-1];continue}
+      const row=transRow(bp,prev),al=ALLOWED[diff];
+      const c=[];
+      for(const k in row){
+        if(!al[k])continue;
+        let w=row[k];
+        if(isFirst&&!NOTE_TOK[k])continue;
+        if(isFirst&&k==='Uh')continue;
+        if(!isFirst&&k==='R')w*=0.25;
+        if(isLast&&!(k==='Q'||k==='E'||k==='Uh'||(k==='Ur'&&diff>=2)))continue;
+        if((k==='H'||k==='Uh')&&prev==='T')continue;
+        if(k==='H'&&prev==='R')continue;
+        if(k==='Uh'&&prev==='R')continue;
+        if(diff===2&&k==='E')w*=0.8;
+        if(diff===1&&k==='H'&&bp%2===1)w*=0.5;
+        if(role==='contrast'&&(k==='E'||k==='T'))w*=1.15;
+        if(role==='resolution'&&(k==='H'||k==='Q'))w*=1.2;
+        c.push({v:k,w});
+      }
+      const k=c.length?pickW(rng,c):'Q';
+      toks.push(k);prev=k;
+    }
+    if(!motif&&ph.e-ph.s>=3)motif={toks:toks.slice(0,Math.min(6,toks.length)),pi};
+    if(recall){ph.recall=true;tag(Math.floor(ph.s/4),'모티프 회상(리듬)')}
+    /* 토큰 → 음 이벤트 */
+    const phEv=[];
+    toks.forEach((k,j)=>{
+      const t=(ph.s+j)*6;
+      const lastEv=phEv[phEv.length-1];
+      if(k==='Q')phEv.push({t,d:6});
+      else if(k==='E'){phEv.push({t,d:3});phEv.push({t:t+3,d:3})}
+      else if(k==='Ur'){phEv.push({t:t+3,d:3})}
+      else if(k==='Uh'){if(lastEv&&lastEv.t+lastEv.d===t&&!lastEv.trip)lastEv.d+=3;phEv.push({t:t+3,d:3})}
+      else if(k==='T'){phEv.push({t,d:2,trip:1});phEv.push({t:t+2,d:2,trip:1});phEv.push({t:t+4,d:2,trip:1})}
+      else if(k==='H'){if(lastEv&&lastEv.t+lastEv.d===t&&!lastEv.trip)lastEv.d+=6}
+    });
+    if(!phEv.length)return;
+    /* 프레이즈 끝음 — 길게(1~2박 더) */
+    const le=phEv[phEv.length-1];
+    if(!le.trip){
+      const ext=ph.final?Math.max(0,TOT-(le.t+le.d)):(rng()<0.6?6:(rng()<0.5?3:0));
+      le.d+=ext;
+    }
+    phEv.forEach((e,k)=>{e.ph=pi;e.strong=e.t%6===0;e.first=k===0;e.last=k===phEv.length-1;e.midi=null;events.push(e)});
+    if(phEv[0].t%6!==0)tag(Math.floor(phEv[0].t/24),'픽업 진입');
+  });
+  /* 겹침 제거 */
+  events.sort((a,b)=>a.t-b.t);
+  for(let i=0;i<events.length-1;i++)if(events[i].t+events[i].d>events[i+1].t)events[i].d=Math.max(1,events[i+1].t-events[i].t);
+  for(const e of events)if(e.t+e.d>TOT)e.d=TOT-e.t;
+
+  /* ── ②⑤ 음 선택 ── */
+  const ivP=PF?PF.iv:null;
+  const ivW=d=>{if(d<-12||d>12)return 0.0005;return ivP?ivP[d+12]+0.002:Math.exp(-Math.abs(d)/2.5)};
+  const pcW=(seg,rel,strong)=>{
+    if(!PF)return 1;
+    const tab=PF.pc[seg.cls]||PF.pc[TYPE_CLS[seg.type]];
+    return (tab[strong?'on':'off'][rel]||0.001)+0.004;
+  };
+  const inScale=(seg,m)=>seg.scale.includes(mod12(m-seg.root));
+  const isCT=(seg,m)=>seg.ct.includes(mod12(m-seg.root));
+  const isTens=(seg,m)=>seg.tens.includes(mod12(m-seg.root));
+  const isGuide=(seg,m)=>seg.guide.includes(mod12(m-seg.root));
+  const chromF=PF?Math.min(1.6,Math.max(0.6,PF.stats.chrom/0.2)):1;
+  const cellRate=PF?(0.18+0.5*(PF.stats.eighth-0.68)):0.2;
+
+  const forced=new Map(); /* 이벤트 인덱스 → {m,kind} */
+  let prevM=null,prev2M=null,lastDir=-1;
+  const contour={};
+
+  function pitchCands(i,e,seg,mode){
+    const out=[];
+    for(let m=LO;m<=HI;m++){
+      if(!allow(m,e.t))continue;
+      const rel=mod12(m-seg.root);
+      const ct=isCT(seg,m),sc=inScale(seg,m),tn=isTens(seg,m);
+      let w;
+      if(diff===1){if(!ct)continue;w=pcW(seg,rel,true)}
+      else if(diff===2){
+        if(e.strong){if(!ct&&!tn)continue;w=pcW(seg,rel,true)*(ct?1:0.6)}
+        else{if(!sc&&!ct)continue;w=pcW(seg,rel,false)}
+        if(seg.type==='maj7'&&rel===5&&e.strong)w*=0.1; /* 장7 위 4음(어보이드) */
+      }else{
+        if(!sc&&!ct){
+          if(e.strong||prevM===null||Math.abs(m-prevM)!==1)continue; /* 크로매틱은 약박·반음 진행만 */
+          const dir=Math.sign(m-prevM),nx=m+dir;
+          if(!inScale(seg,nx)&&!isCT(seg,nx))continue;
+          w=pcW(seg,rel,false)*0.9*chromF;
+        }else{w=pcW(seg,rel,e.strong);if(e.strong&&!ct&&!tn)w*=0.35}
+        if(seg.type==='maj7'&&rel===5&&e.strong)w*=0.1;
+      }
+      if(prevM!==null){
+        const d=m-prevM;
+        if(Math.abs(d)>MAXLEAP)continue;
+        w*=Math.pow(ivW(d),0.9);
+        if(d!==0&&Math.sign(d)===lastDir&&Math.abs(d)<=3)w*=1.2; /* 라인의 방향 지속 */
+        if(d===0)w*=diff===1?0.18:0.3;                          /* 같은 음 반복 억제(WJD 실측 4%) */
+        if(prev2M!==null&&m===prev2M&&d!==0&&diff>=2)w*=0.6;     /* 지그재그(A-B-A) 억제 */
+        if(Math.abs(d)>=5&&e.first)w*=0.6;
+      }
+      /* 음형 목표(프레이즈 아치/하행) */
+      const g=contour.goal?contour.goal(e.t):centerAt(e.t);
+      const dg=m-g;w*=Math.exp(-(dg*dg)/(2*(diff===1?4.5:6)*(diff===1?4.5:6)));
+      if(mode==='end'){if(!ct&&!(tn&&seg.cls!=='domalt'))continue;w*=(rel===0||isGuide(seg,m)||rel===7)?1.5:1}
+      if(w>0)out.push({v:m,w});
+    }
+    return out;
+  }
+  function chooseTarget(seg,t,ref){
+    const c=[];
+    for(let m=LO;m<=HI;m++){
+      if(!allow(m,t)||!isCT(seg,m)&&!(diff===3&&isTens(seg,m)&&seg.cls==='domalt'))continue;
+      const d=ref===null?0:m-ref;
+      if(Math.abs(d)>Math.min(MAXLEAP,diff===1?5:6))continue;
+      let w=pcW(seg,mod12(m-seg.root),true);
+      if(isGuide(seg,m))w*=3.2;
+      if(Math.abs(d)===1)w*=2.6;else if(Math.abs(d)===2)w*=1.8;else if(d===0)w*=diff===1?0.35:0.15;
+      const g=contour.goal?contour.goal(t):centerAt(t);w*=Math.exp(-((m-g)*(m-g))/72);
+      c.push({v:m,w});
+    }
+    return c.length?pickW(rng,c):null;
+  }
+  const okNote=(m,t,ref)=>m!==null&&allow(m,t)&&(ref===null||Math.abs(m-ref)<=MAXLEAP);
+  /* 셀 배치(실측·교본) — 음형을 통째로 보존 */
+  function tryCell(i){
+    if(!useLicks||diff<2||!SD)return false;
+    const e=events[i];
+    if(e.trip||e.t%6!==0)return false;
+    if(rng()>Math.min(0.75,0.45+cellRate))return false;
+    const run=[0,1,2,3].map(k=>events[i+k]);
+    if(run.some((x,k)=>!x||x.trip||x.ph!==e.ph||x.t!==e.t+3*k||x.d!==3||forced.has(i+k)))return false;
+    const s0=segAt(e.t);if(segAt(e.t+11)!==s0)return false;
+    const seg=segs[s0];
+    const nxtE=events[i+4],seg2Idx=segAt(e.t+12),seg2=segs[seg2Idx];
+    const canPair=nxtE&&nxtE.ph===e.ph&&nxtE.t===e.t+12&&seg2Idx!==s0&&!forced.has(i+4);
+    let pool=[];
+    for(const c of SD.cells){
+      if(c.minDiff&&diff<c.minDiff)continue;
+      const okCls=c.cls===seg.cls||(c.cls==='dom'&&seg.cls==='domalt'&&!c.to);
+      if(!okCls)continue;
+      if(c.to){
+        if(!canPair)continue;
+        const toCls=seg2.cls==='domalt'?'domalt':seg2.cls;
+        if(!(c.to===toCls||(c.to==='dom'&&toCls==='domalt')))continue;
+        if(mod12(seg2.root-seg.root)!==c.tr)continue;
+      }
+      if(diff===2&&c.iv.slice(0,3).some((v,k)=>{const p=c.s+c.iv.slice(0,k+1).reduce((a,b)=>a+b,0);return !seg.scale.includes(mod12(p))&&!seg.ct.includes(mod12(p))}))continue;
+      pool.push({v:c,w:(c.src==='WJD'?Math.log(1+c.np)*(c.to?1.6:1):1.6)*(c.to?2:1)});
+    }
+    if(!pool.length)return false;
+    const c=pickW(rng,pool);
+    const base=seg.root+c.s;
+    const ref=prevM===null?centerAt(e.t):prevM;
+    let best=null;
+    for(let o=-3;o<=3;o++){
+      const st=mod12(base)+12*(Math.floor(ref/12)+o);
+      if(prevM!==null&&Math.abs(st-prevM)>Math.min(MAXLEAP,5))continue;
+      const ms=[st];for(const v of c.iv)ms.push(ms[ms.length-1]+v);
+      if(ms.some((m,k)=>!allow(m,e.t+3*k)))continue;
+      if(c.to&&!(isCT(seg2,ms[4])||isTens(seg2,ms[4])))continue;
+      const sc=Math.abs(st-ref);if(!best||sc<best.sc)best={ms,sc};
+    }
+    if(!best)return false;
+    best.ms.forEach((m,k)=>forced.set(i+k,{m,kind:k===4?'target':'cell'}));
+    const nm=(c.src==='WJD'?'실측 셀: ':'교본 어휘: ')+c.name+(c.src==='WJD'?' ('+c.np+'명 공통)':'');
+    tag(Math.floor(e.t/24),nm);lickUse[c.id||c.name]=(lickUse[c.id||c.name]||0)+1;stats.cells++;
+    return true;
+  }
+  /* 다음 코드 다운비트 타깃 + 어프로치 역산 */
+  function planApproach(i){
+    const e=events[i];
+    let j=-1;
+    for(let k=i+1;k<=i+3&&k<events.length;k++){
+      if(events[k].ph!==e.ph)break;
+      if(segAt(events[k].t)!==segAt(events[k-1].t)&&events[k].t===segs[segAt(events[k].t)].t0){j=k;break}
+    }
+    if(j<0||forced.has(j))return;
+    const seg2=segs[segAt(events[j].t)];
+    const T=chooseTarget(seg2,events[j].t,prevM);
+    if(T===null)return;
+    forced.set(j,{m:T,kind:'target'});stats.targets++;
+    const gap=j-i;
+    const ap1=events[j-1],ap2=events[j-2];
+    const segA=segs[segAt(ap1?ap1.t:0)];
+    const opts=[];
+    if(diff>=2&&gap>=2&&!forced.has(j-1)&&!ap1.trip){
+      opts.push({v:'chrB',w:1.4},{v:'chrA',w:diff===3?0.9:0.3},{v:'stepA',w:1.2},{v:'stepB',w:0.8});
+      if(diff===3&&gap>=3&&!forced.has(j-2)&&!ap2.trip&&ap2.ph===e.ph)opts.push({v:'enc',w:1.6},{v:'encC',w:0.8});
+      if(diff===2&&gap>=3&&!forced.has(j-2)&&ap2.ph===e.ph)opts.push({v:'enc',w:0.6});
+    }
+    if(!opts.length)return;
+    const kind=pickW(rng,opts);
+    const scaleUp=m=>{for(let x=m+1;x<=m+3;x++)if(inScale(seg2,x)||isCT(seg2,x))return x;return m+2};
+    const scaleDn=m=>{for(let x=m-1;x>=m-3;x--)if(inScale(seg2,x)||isCT(seg2,x))return x;return m-2};
+    const refA=gap>=3?null:prevM;
+    let seq=null;
+    if(kind==='chrB')seq=[T-1];
+    else if(kind==='chrA')seq=[T+1];
+    else if(kind==='stepA')seq=[scaleUp(T)];
+    else if(kind==='stepB')seq=[scaleDn(T)];
+    else if(kind==='enc')seq=[scaleUp(T),T-1];
+    else if(kind==='encC')seq=[T+1,T-1];
+    /* 중급: 어프로치음이 앞 코드에서 너무 어긋나면(비스케일·강박) 스케일 어프로치로 */
+    if(diff===2&&seq.length===1&&ap1.strong&&!inScale(segA,seq[0])&&!isCT(segA,seq[0]))seq=[scaleUp(T)];
+    const startIdx=j-seq.length;
+    let ref=startIdx-1===i?prevM:null;
+    for(let k=0;k<seq.length;k++){
+      const ev=events[startIdx+k];
+      if(!okNote(seq[k],ev.t,k===0?ref:seq[k-1]))return;
+    }
+    if(!okNote(T,events[j].t,seq[seq.length-1]))return;
+    seq.forEach((m,k)=>forced.set(startIdx+k,{m,kind:k===seq.length-1&&seq.length===2?'enc2':(seq.length===2?'enc1':'appr')}));
+    if(seq.length===2){stats.enc++;tag(Math.floor(events[j].t/24),'인클로저')}
+    else if(Math.abs(seq[0]-T)===1){stats.appr++;tag(Math.floor(events[j].t/24),'반음 어프로치')}
+    else tag(Math.floor(events[j].t/24),'스케일 어프로치');
+  }
+
+  let curPh=-1;
+  for(let i=0;i<events.length;i++){
+    const e=events[i];
+    const seg=segs[segAt(e.t)];
+    if(e.ph!==curPh){ /* 새 프레이즈: 음형 목표 설정 */
+      curPh=e.ph;
+      const ph=phrases[e.ph],t0=ph.s*6,t1=(ph.e+1)*6;
+      const c=centerAt(t0),span=inst==='free'||!useGroups?7:4;
+      const shape=pickW(rng,[{v:'desc',w:4},{v:'arch',w:3},{v:'asc',w:1.2},{v:'valley',w:1}]);
+      const hi=c+span,lo=c-span;
+      contour.goal=t=>{
+        const x=Math.max(0,Math.min(1,(t-t0)/Math.max(1,t1-t0)));
+        if(shape==='desc')return hi-(hi-lo)*x;
+        if(shape==='asc')return lo+(hi-lo)*x;
+        if(shape==='arch')return lo+(hi-lo)*Math.sin(Math.PI*x);
+        return hi-(hi-lo)*Math.sin(Math.PI*x);
+      };
+      contour.shape=shape;
+      if(ph.s%4===0||e.first)tag(Math.floor(e.t/24),'프레이즈 시작');
+    }
+    let m=null,f=forced.get(i);
+    if(f&&okNote(f.m,e.t,prevM))m=f.m;
+    else{
+      if(f)forced.delete(i);
+      if(!e.first&&!e.last&&tryCell(i)){const f2=forced.get(i);if(okNote(f2.m,e.t,prevM))m=f2.m}
+      if(m===null){
+        const mode=(e.last||(e.first&&e.d>=6))?'end':null;
+        let c=pitchCands(i,e,seg,mode);
+        if(!c.length)c=pitchCands(i,e,seg,null);
+        if(!c.length){
+          const ct=chordToneMidis(seg.root,seg.type,LO,HI).filter(x=>okNote(x,e.t,prevM));
+          if(ct.length)m=nearest(ct,prevM===null?centerAt(e.t):prevM);
+          else if(prevM!==null&&e.trip)m=prevM;
+        }else m=pickW(rng,c);
+      }
+    }
+    if(m!==null&&diff===3&&!inScale(seg,m)&&!isCT(seg,m)&&!forced.has(i)){
+      stats.chrom++;tag(Math.floor(e.t/24),'크로매틱 통과음');
+      const nx=events[i+1];
+      if(nx&&nx.ph===e.ph&&!forced.has(i+1)&&prevM!==null){const r=m+Math.sign(m-prevM);if(okNote(r,nx.t,m))forced.set(i+1,{m:r,kind:'pass'})}
+    }
+    e.midi=m;
+    if(f&&f.kind==='target'&&m!==null){
+      if(isGuide(seg,m)){stats.guideHits++;tag(Math.floor(e.t/24),'가이드톤 타깃')}
+      else tag(Math.floor(e.t/24),'코드톤 착지');
+    }
+    if(m!==null){if(prevM!==null&&m!==prevM)lastDir=Math.sign(m-prevM);prev2M=prevM;prevM=m}
+    planApproach(i);
+  }
+  /* 안전망: 5도 초과 도약(관악기) → 가까운 코드톤으로 교정, 안 되면 쉼표 */
+  for(let pass=0;pass<2;pass++){
+    let pv=null;
+    for(let i=0;i<events.length;i++){
+      const e=events[i];if(e.midi===null)continue;
+      if(pv!==null&&Math.abs(e.midi-pv)>MAXLEAP){
+        const seg=segs[segAt(e.t)];
+        const c=chordToneMidis(seg.root,seg.type,LO,HI).filter(x=>okNote(x,e.t,pv));
+        if(c.length)e.midi=nearest(c,e.midi);else if(!e.trip)e.midi=null;else e.midi=pv;
+      }
+      if(e.midi!==null)pv=e.midi;
+    }
+  }
+
+  /* ── ⑦ 마디 분할 · 붙임줄 · 표기용 길이 정리 ── */
+  const pieces=[];
+  const legal=(s,rem,isRest)=>{ /* 마디 안 위치 s에서 쓸 수 있는 최대 길이 */
+    const p=s%24;const lim=Math.min(rem,24-p);
+    const opts=[24,18,12,9,6,3,2,1];
+    for(const d of opts){
+      if(d>lim)continue;
+      if(p%6!==0){ /* 엇박 시작: 박 중간(12) 넘지 않게, 8분·4분·점4분까지 */
+        if(d>9)continue;if(p<12&&p+d>12)continue;
+        if(d===9&&p%6!==3)continue;
+      }else{
+        if(p===6&&d>6&&!(d===12&&!isRest))continue;
+        if(p===6&&d===12&&isRest)continue;
+        if(p===18&&d>6)continue;
+        if(p===12&&d>12)continue;
+        if(d===18&&p!==0)continue;
+        if(d===9&&p!==0&&p!==12)continue;
+      }
+      return d;
+    }
+    return 1;
+  };
+  let cursor=0;
+  const pushRest=(s,e2)=>{let t=s;while(t<e2){const d=legal(t,e2-t,true);pieces.push({t,d,midi:null});t+=d}};
+  for(const e of events){
+    if(e.t>cursor)pushRest(cursor,e.t);
+    if(e.trip){pieces.push({t:e.t,d:e.d,midi:e.midi,trip:true,ev:e});cursor=e.t+e.d;continue}
+    let t=e.t,end=e.t+e.d,first=true;
+    while(t<end){
+      const d=legal(t,end-t,false);
+      pieces.push({t,d,midi:e.midi,tie:t+d<end&&e.midi!==null,ev:e,cont:!first});
+      if(!first&&Math.floor(t/24)!==Math.floor((t-1)/24)&&e.midi!==null)tag(Math.floor(t/24),'붙임줄 당김음');
+      t+=d;first=false;
+    }
+    cursor=end;
+  }
+  if(cursor<TOT)pushRest(cursor,TOT);
+  /* 3연음 그룹 보정: 그룹(박 단위)은 반드시 3개 */
+  const result=bars.map((bar,b)=>({chords:bar,notes:[],tags:tagsAt[b]}));
+  for(const p of pieces){
+    const b=Math.floor(p.t/24);
+    const n={t:p.t-b*24,d:p.d,midi:p.midi};
+    if(p.trip)n.trip=true;if(p.tie)n.tie=true;
+    if(p.ev&&!p.cont){if(p.ev.first)n.phStart=true;if(p.ev.last)n.phEnd=true}
+    result[b].notes.push(n);
+  }
+  result.forEach((bar,b)=>{
+    if(bar.notes.some(n=>n.trip))tag(b,'3연음');
+    if(inst==='wind'&&phrases.some(ph=>Math.floor(ph.e/4)===b&&!ph.final))tag(b,'호흡 쉼표');
+    if(!bar.notes.some(n=>n.midi!==null))tag(b,'쉼(호흡)');
+  });
+  phrases.forEach(ph=>tag(Math.floor(ph.e/4),'프레이즈 종지'));
+  return {progId,keyPc,diff,style:styleId,bars:result,ts:Date.now(),harm:segs.map(s=>({bar:s.bar,t0:s.t0,label:s.label,fn:s.fn,sname:s.sname})),
+    stats,form:{phrase:P,sections:sec.slice(0,nPh).split(''),licks:lickUse,phrases:phrases.length}};
+}
+
+/* ── ABC 악보 코드 변환 ── */
+const LETTERS=['C','D','E','F','G','A','B'];
+const NAT_PC=[0,2,4,5,7,9,11];
+const ROOT_LETTER=[0,1,1,2,2,3,3,4,5,5,6,6];
+function letterAdvance(deg){return Math.round(deg*7/12)}
+function abcName(li,oct){
+  if(oct>=6)return LETTERS[li].toLowerCase()+"'".repeat(oct-6);
+  return LETTERS[li]+",".repeat(Math.max(0,5-oct));
+}
+/* midi → {acc, name(임시표 제외)} — 코드 뿌리 글자 기준 철자 */
+function spellParts(midi,rootPc,scale){
+  const pc=mod12(midi);
+  const rootLi=ROOT_LETTER[mod12(rootPc)];
+  const deg=mod12(pc-rootPc);
+  let li=-1;
+  if(scale.includes(deg))li=(rootLi+letterAdvance(deg))%7;
+  else{
+    /* 스케일 밖 음: 상행 어프로치는 아래 글자+♯, 그 외 위 글자+♭ 보다 단순하게 — 이웃 스케일음 기준 */
+    for(const dd of [1,-1]){
+      const deg2=mod12(deg+dd);
+      if(scale.includes(deg2)){li=(rootLi+letterAdvance(deg2))%7;break}
+    }
+  }
+  if(li<0)li=ROOT_LETTER[pc];
+  let diffPc=pc-NAT_PC[li];if(diffPc>6)diffPc-=12;if(diffPc<-6)diffPc+=12;
+  if(Math.abs(diffPc)>1){li=ROOT_LETTER[pc];diffPc=pc-NAT_PC[li];if(diffPc>6)diffPc-=12;if(diffPc<-6)diffPc+=12}
+  const acc=diffPc===1?'^':(diffPc===-1?'_':'');
+  const oct=Math.round((midi-NAT_PC[li]-diffPc)/12);
+  return {acc,name:abcName(li,oct),letter:LETTERS[li]};
+}
+function spell(midi,rootPc,scale){const s=spellParts(midi,rootPc,scale);return s.acc+s.name}
+function abcDur(ticks,trip){
+  if(trip)return ticks===4?'2':(ticks===2?'':ticks+'/3');
+  const v=ticks/3;
+  return Number.isInteger(v)?String(v):ticks+'/3';
+}
+function toAbc(solo,tempo,transpose){
+  transpose=transpose||0;
+  const rows=[];
+  for(let b=0;b<solo.bars.length;b+=4){
+    const chunk=solo.bars.slice(b,b+4).map(bar=>{
+      let s=bar.chords.map(ch=>'"'+chordSymbol(ch.root+transpose,ch.type)+'"').join(' ')+' ';
+      let tripPos=0;
+      const exact={},letter={};   /* 마디 안 임시표 지속(ABC·기보 공통 규칙) */
+      bar.notes.forEach((n,k)=>{
+        const ch=bar.chords[(n.t>=12&&bar.chords.length>1)?1:0];
+        const scale=CHORD_TYPES[ch.type].scale;
+        if(n.t%6===0&&k>0&&!n.trip&&!(bar.notes[k-1]&&bar.notes[k-1].trip))s+=' ';
+        if(n.trip&&tripPos%3===0)s+='(3';
+        if(n.midi===null)s+='z'+abcDur(n.d,!!n.trip);
+        else{
+          const p=spellParts(n.midi+transpose,ch.root+transpose,scale);
+          const want=p.acc;
+          const cur1=exact[p.name]!==undefined?exact[p.name]:'',cur2=letter[p.letter]!==undefined?letter[p.letter]:'';
+          let accOut='';
+          if(want!==cur1||want!==cur2)accOut=want===''?'=':want;
+          exact[p.name]=want;letter[p.letter]=want;
+          s+=accOut+p.name+abcDur(n.d,!!n.trip)+(n.tie?'-':'');
+        }
+        tripPos=n.trip?tripPos+1:0;
+      });
+      return s;
+    });
+    rows.push(chunk.join('|')+'|');
+  }
+  return 'X:1\nT:Generated Solo\nM:4/4\nL:1/8\nQ:1/4='+tempo+'\nK:C\n'+rows.join('\n');
+}
+
+/* 편집 반영 — 편집된 음은 붙임줄을 끊는다 */
+function applyEdits(solo,edits){
+  for(const k in edits){
+    const p=k.split(':'),b=+p[0],i=+p[1];
+    const bar=solo.bars[b];
+    if(!bar||!bar.notes[i])continue;
+    if(edits[k].rest)bar.notes[i].midi=null;
+    else bar.notes[i].midi=edits[k].midi;
+  }
+  /* 붙임줄 정합성: 다음 음이 같은 음이 아니면 tie 해제 */
+  const flat=[];solo.bars.forEach(bar=>bar.notes.forEach(n=>flat.push(n)));
+  for(let i=0;i<flat.length;i++)if(flat[i].tie&&(!flat[i+1]||flat[i+1].midi!==flat[i].midi||flat[i].midi===null))flat[i].tie=false;
+  return solo;
+}
+
+/* Weimar Jazz Database v2.1 (Jazzomat Research Project, HfM Weimar · ODbL 1.0) 에서 추출한 통계 요약.
+   원 전사 음표열은 포함하지 않으며, 연주자 그룹별 확률 분포와 다수 연주자 공통 4~5음 셀(4명 이상 공통)만 담는다. */
+const STYLE_DATA={"profiles":{"all":{"rhy":{"1":{"R":[0.526,0.0,0.07,0.118,0.248,0.0,0.018,0.02],"H":[0.321,0.241,0.114,0.126,0.115,0.056,0.013,0.013],"Q":[0.191,0.098,0.299,0.247,0.098,0.034,0.018,0.016],"E":[0.028,0.099,0.155,0.478,0.035,0.137,0.041,0.028],"Ur":[0.022,0.127,0.138,0.317,0.064,0.231,0.058,0.042],"Uh":[0.019,0.142,0.167,0.293,0.042,0.257,0.038,0.041],"T":[0.025,0.077,0.138,0.378,0.029,0.144,0.149,0.058],"Tr":[0.009,0.098,0.119,0.34,0.033,0.24,0.08,0.082]},"2":{"R":[0.576,0.0,0.039,0.126,0.212,0.0,0.023,0.024],"H":[0.231,0.262,0.092,0.13,0.093,0.158,0.014,0.02],"Q":[0.169,0.146,0.176,0.223,0.106,0.14,0.022,0.019],"E":[0.037,0.095,0.094,0.518,0.035,0.147,0.045,0.029],"Ur":[0.019,0.103,0.096,0.363,0.061,0.232,0.071,0.054],"Uh":[0.029,0.135,0.11,0.305,0.039,0.296,0.041,0.045],"T":[0.017,0.065,0.117,0.371,0.028,0.153,0.182,0.067],"Tr":[0.011,0.064,0.081,0.37,0.033,0.242,0.11,0.089]},"3":{"R":[0.527,0.0,0.077,0.18,0.177,0.0,0.018,0.02],"H":[0.277,0.247,0.147,0.146,0.086,0.067,0.011,0.018],"Q":[0.136,0.12,0.294,0.282,0.079,0.052,0.021,0.015],"E":[0.021,0.089,0.122,0.528,0.034,0.135,0.043,0.027],"Ur":[0.017,0.146,0.134,0.303,0.052,0.239,0.057,0.052],"Uh":[0.019,0.137,0.141,0.323,0.041,0.258,0.04,0.043],"T":[0.017,0.081,0.11,0.368,0.04,0.167,0.168,0.05],"Tr":[0.014,0.09,0.109,0.371,0.028,0.225,0.087,0.076]},"4":{"R":[0.649,0.0,0.032,0.093,0.193,0.0,0.017,0.016],"H":[0.297,0.243,0.085,0.121,0.1,0.121,0.008,0.024],"Q":[0.172,0.132,0.201,0.256,0.08,0.121,0.021,0.019],"E":[0.034,0.081,0.101,0.527,0.036,0.143,0.045,0.033],"Ur":[0.017,0.083,0.094,0.362,0.065,0.257,0.069,0.054],"Uh":[0.035,0.102,0.113,0.327,0.042,0.294,0.04,0.047],"T":[0.013,0.072,0.088,0.405,0.035,0.163,0.171,0.053],"Tr":[0.011,0.069,0.091,0.34,0.032,0.274,0.093,0.088]}},"pc":{"maj":{"on":[0.156,0.022,0.117,0.046,0.153,0.058,0.034,0.172,0.022,0.094,0.03,0.097],"off":[0.139,0.028,0.119,0.045,0.134,0.066,0.044,0.158,0.035,0.095,0.033,0.103]},"min":{"on":[0.141,0.038,0.094,0.15,0.029,0.112,0.039,0.147,0.041,0.075,0.087,0.046],"off":[0.124,0.04,0.103,0.134,0.039,0.117,0.042,0.141,0.046,0.07,0.093,0.05]},"dom":{"on":[0.149,0.044,0.098,0.051,0.112,0.076,0.041,0.133,0.044,0.1,0.114,0.037],"off":[0.132,0.051,0.104,0.052,0.094,0.088,0.049,0.128,0.051,0.097,0.105,0.049]},"domalt":{"on":[0.135,0.077,0.046,0.08,0.112,0.072,0.046,0.122,0.091,0.042,0.135,0.041],"off":[0.13,0.087,0.057,0.075,0.085,0.09,0.051,0.122,0.09,0.042,0.12,0.05]},"hdim":{"on":[0.118,0.084,0.032,0.135,0.049,0.124,0.123,0.035,0.079,0.062,0.115,0.044],"off":[0.102,0.088,0.045,0.147,0.04,0.137,0.105,0.039,0.081,0.057,0.115,0.043]},"dim":{"on":[0.078,0.068,0.057,0.107,0.08,0.033,0.123,0.055,0.103,0.119,0.046,0.13],"off":[0.099,0.064,0.075,0.088,0.069,0.047,0.129,0.07,0.085,0.127,0.056,0.092]}},"iv":[0.0013,0.0006,0.0016,0.0039,0.004,0.0087,0.0071,0.0307,0.0525,0.0901,0.1535,0.1453,0.043,0.1379,0.132,0.0851,0.0404,0.0304,0.0073,0.0111,0.0048,0.004,0.0022,0.0012,0.0014],"stats":{"ctOn":0.588,"chrom":0.215,"eighth":0.735,"trip":0.098,"phraseMed":14,"phLen":[4.2,7.1,13.1],"gap":[1.2,2.0,3.1]},"label":"균형 · WJD 전체","swingOff":0,"n":158660,"solos":347},"parker":{"rhy":{"1":{"R":[0.54,0.0,0.051,0.081,0.28,0.0,0.015,0.033],"H":[0.496,0.209,0.04,0.079,0.139,0.022,0.003,0.012],"Q":[0.151,0.128,0.183,0.345,0.131,0.029,0.029,0.005],"E":[0.019,0.093,0.124,0.503,0.035,0.145,0.044,0.036],"Ur":[0.006,0.069,0.146,0.457,0.023,0.174,0.066,0.059],"Uh":[0.024,0.083,0.149,0.365,0.031,0.245,0.043,0.062],"T":[0.038,0.016,0.122,0.496,0.039,0.077,0.163,0.048],"Tr":[0.027,0.084,0.165,0.406,0.012,0.173,0.107,0.026]},"2":{"R":[0.552,0.0,0.018,0.09,0.264,0.0,0.033,0.043],"H":[0.291,0.18,0.041,0.181,0.127,0.12,0.03,0.029],"Q":[0.162,0.172,0.102,0.28,0.133,0.056,0.016,0.08],"E":[0.034,0.111,0.073,0.49,0.05,0.168,0.045,0.029],"Ur":[0.003,0.049,0.079,0.445,0.028,0.23,0.098,0.068],"Uh":[0.021,0.103,0.142,0.34,0.027,0.24,0.067,0.06],"T":[0.021,0.094,0.147,0.381,0.046,0.149,0.148,0.015],"Tr":[0.001,0.112,0.061,0.399,0.009,0.142,0.172,0.105]},"3":{"R":[0.555,0.0,0.039,0.174,0.214,0.0,0.007,0.011],"H":[0.366,0.242,0.074,0.089,0.09,0.065,0.004,0.069],"Q":[0.117,0.18,0.153,0.298,0.133,0.089,0.009,0.02],"E":[0.016,0.097,0.115,0.545,0.033,0.123,0.049,0.021],"Ur":[0.005,0.068,0.132,0.417,0.035,0.185,0.095,0.063],"Uh":[0.013,0.125,0.133,0.348,0.029,0.252,0.068,0.033],"T":[0.002,0.052,0.171,0.397,0.072,0.132,0.148,0.027],"Tr":[0.02,0.018,0.1,0.409,0.007,0.144,0.242,0.059]},"4":{"R":[0.651,0.0,0.013,0.077,0.228,0.0,0.004,0.027],"H":[0.384,0.2,0.043,0.096,0.136,0.115,0.012,0.014],"Q":[0.158,0.214,0.118,0.211,0.064,0.165,0.02,0.051],"E":[0.017,0.111,0.072,0.527,0.035,0.16,0.043,0.034],"Ur":[0.002,0.022,0.072,0.361,0.034,0.256,0.142,0.109],"Uh":[0.018,0.078,0.092,0.417,0.025,0.283,0.057,0.031],"T":[0.002,0.041,0.063,0.469,0.039,0.121,0.224,0.041],"Tr":[0.002,0.023,0.08,0.498,0.004,0.178,0.153,0.062]}},"pc":{"maj":{"on":[0.151,0.015,0.103,0.027,0.176,0.064,0.021,0.192,0.019,0.092,0.027,0.112],"off":[0.146,0.027,0.13,0.04,0.118,0.078,0.033,0.16,0.03,0.086,0.031,0.122]},"min":{"on":[0.15,0.026,0.122,0.15,0.019,0.125,0.034,0.121,0.042,0.066,0.102,0.043],"off":[0.14,0.031,0.108,0.154,0.037,0.107,0.038,0.142,0.04,0.056,0.095,0.052]},"dom":{"on":[0.153,0.048,0.103,0.037,0.13,0.077,0.028,0.162,0.035,0.089,0.112,0.027],"off":[0.12,0.048,0.108,0.046,0.101,0.098,0.038,0.141,0.045,0.097,0.109,0.046]},"domalt":{"on":[0.106,0.087,0.052,0.073,0.132,0.053,0.046,0.129,0.096,0.042,0.171,0.013],"off":[0.12,0.108,0.045,0.051,0.079,0.1,0.036,0.164,0.082,0.034,0.128,0.054]},"hdim":{"on":[0.098,0.053,0.037,0.184,0.061,0.114,0.116,0.015,0.063,0.095,0.128,0.034],"off":[0.132,0.068,0.041,0.159,0.038,0.154,0.113,0.028,0.072,0.044,0.108,0.044]},"dim":{"on":[0.076,0.034,0.127,0.176,0.027,0.009,0.148,0.103,0.08,0.102,0.022,0.096],"off":[0.161,0.03,0.076,0.049,0.067,0.067,0.096,0.041,0.118,0.116,0.042,0.138]}},"iv":[0.0009,0.0001,0.0019,0.0052,0.003,0.0066,0.0057,0.0281,0.0462,0.0895,0.1651,0.1721,0.0326,0.1394,0.1168,0.0924,0.0356,0.022,0.0057,0.0123,0.0079,0.0051,0.0026,0.002,0.0011],"stats":{"ctOn":0.675,"chrom":0.173,"eighth":0.763,"trip":0.139,"phraseMed":16,"phLen":[3.5,6.4,9.2],"gap":[1.0,1.6,2.6]},"label":"Charlie Parker 계열","swingOff":0.012,"n":5188,"solos":15},"cbrown":{"rhy":{"1":{"R":[0.522,0.0,0.037,0.088,0.312,0.0,0.016,0.025],"H":[0.384,0.178,0.069,0.154,0.128,0.065,0.005,0.018],"Q":[0.162,0.128,0.245,0.282,0.149,0.018,0.008,0.008],"E":[0.022,0.06,0.152,0.494,0.042,0.149,0.057,0.023],"Ur":[0.008,0.068,0.196,0.397,0.044,0.192,0.055,0.041],"Uh":[0.008,0.073,0.118,0.275,0.044,0.383,0.036,0.063],"T":[0.036,0.166,0.2,0.233,0.041,0.212,0.084,0.029],"Tr":[0.005,0.059,0.116,0.302,0.022,0.259,0.055,0.183]},"2":{"R":[0.544,0.0,0.016,0.143,0.268,0.0,0.02,0.011],"H":[0.376,0.221,0.042,0.093,0.081,0.154,0.008,0.025],"Q":[0.167,0.081,0.167,0.275,0.092,0.163,0.037,0.017],"E":[0.031,0.089,0.065,0.536,0.033,0.16,0.059,0.026],"Ur":[0.006,0.066,0.094,0.361,0.06,0.288,0.086,0.04],"Uh":[0.044,0.148,0.103,0.292,0.042,0.288,0.034,0.048],"T":[0.006,0.04,0.134,0.469,0.037,0.19,0.078,0.046],"Tr":[0.003,0.053,0.032,0.396,0.017,0.365,0.07,0.064]},"3":{"R":[0.512,0.0,0.048,0.161,0.215,0.0,0.016,0.049],"H":[0.382,0.159,0.165,0.121,0.102,0.056,0.006,0.009],"Q":[0.152,0.105,0.245,0.278,0.091,0.04,0.068,0.021],"E":[0.022,0.051,0.116,0.561,0.038,0.142,0.04,0.03],"Ur":[0.004,0.11,0.109,0.385,0.046,0.263,0.02,0.063],"Uh":[0.013,0.091,0.153,0.276,0.031,0.336,0.041,0.06],"T":[0.004,0.051,0.068,0.409,0.097,0.249,0.066,0.057],"Tr":[0.006,0.031,0.083,0.401,0.047,0.309,0.029,0.095]},"4":{"R":[0.657,0.0,0.04,0.081,0.205,0.0,0.009,0.009],"H":[0.291,0.229,0.077,0.128,0.081,0.12,0.066,0.009],"Q":[0.204,0.153,0.222,0.254,0.034,0.088,0.038,0.008],"E":[0.036,0.08,0.068,0.603,0.03,0.11,0.045,0.027],"Ur":[0.022,0.08,0.06,0.406,0.045,0.301,0.038,0.047],"Uh":[0.042,0.076,0.112,0.315,0.036,0.327,0.035,0.059],"T":[0.006,0.041,0.035,0.493,0.017,0.103,0.125,0.179],"Tr":[0.005,0.054,0.062,0.382,0.04,0.387,0.025,0.046]}},"pc":{"maj":{"on":[0.147,0.022,0.141,0.028,0.188,0.052,0.029,0.178,0.014,0.082,0.023,0.096],"off":[0.144,0.024,0.135,0.045,0.12,0.083,0.038,0.162,0.026,0.088,0.022,0.112]},"min":{"on":[0.171,0.043,0.112,0.152,0.022,0.088,0.038,0.156,0.036,0.067,0.061,0.055],"off":[0.14,0.043,0.132,0.136,0.034,0.105,0.041,0.142,0.034,0.06,0.075,0.058]},"dom":{"on":[0.178,0.05,0.093,0.042,0.12,0.059,0.035,0.128,0.037,0.096,0.132,0.03],"off":[0.129,0.053,0.114,0.041,0.101,0.083,0.054,0.13,0.046,0.089,0.114,0.045]},"domalt":{"on":[0.106,0.118,0.026,0.073,0.126,0.068,0.078,0.135,0.083,0.023,0.138,0.026],"off":[0.139,0.08,0.069,0.051,0.102,0.097,0.035,0.165,0.076,0.039,0.103,0.044]},"hdim":{"on":[0.144,0.113,0.049,0.088,0.053,0.086,0.113,0.081,0.017,0.104,0.069,0.084],"off":[0.138,0.071,0.068,0.13,0.027,0.149,0.097,0.051,0.032,0.078,0.116,0.042]},"dim":{"on":[0.185,0.127,0.032,0.043,0.031,0.013,0.122,0.028,0.135,0.133,0.034,0.119],"off":[0.042,0.132,0.03,0.187,0.038,0.025,0.051,0.124,0.03,0.181,0.074,0.085]}},"iv":[0.0018,0.0007,0.0013,0.0037,0.0033,0.0064,0.0061,0.0284,0.0446,0.0898,0.1675,0.1462,0.039,0.1593,0.1452,0.0785,0.0313,0.0233,0.0063,0.0083,0.0033,0.0021,0.002,0.001,0.0006],"stats":{"ctOn":0.604,"chrom":0.2,"eighth":0.788,"trip":0.094,"phraseMed":14,"phLen":[4.1,7.3,13.0],"gap":[1.1,2.2,3.3]},"label":"Clifford Brown 계열","swingOff":-0.007,"n":3803,"solos":8},"rollins":{"rhy":{"1":{"R":[0.544,0.0,0.037,0.118,0.271,0.0,0.008,0.021],"H":[0.335,0.206,0.092,0.192,0.11,0.045,0.015,0.004],"Q":[0.24,0.083,0.325,0.179,0.111,0.048,0.007,0.007],"E":[0.039,0.071,0.142,0.526,0.023,0.147,0.027,0.025],"Ur":[0.007,0.115,0.132,0.269,0.058,0.312,0.035,0.071],"Uh":[0.041,0.079,0.141,0.254,0.04,0.369,0.027,0.05],"T":[0.07,0.034,0.187,0.266,0.014,0.197,0.145,0.087],"Tr":[0.004,0.029,0.169,0.339,0.058,0.185,0.101,0.114]},"2":{"R":[0.612,0.0,0.02,0.102,0.239,0.0,0.011,0.015],"H":[0.309,0.284,0.039,0.148,0.063,0.122,0.025,0.009],"Q":[0.222,0.082,0.276,0.209,0.061,0.093,0.04,0.018],"E":[0.042,0.118,0.087,0.518,0.043,0.135,0.025,0.031],"Ur":[0.018,0.141,0.081,0.365,0.066,0.221,0.065,0.044],"Uh":[0.057,0.144,0.168,0.252,0.061,0.241,0.042,0.035],"T":[0.005,0.018,0.102,0.46,0.014,0.248,0.13,0.023],"Tr":[0.041,0.025,0.221,0.281,0.015,0.266,0.079,0.072]},"3":{"R":[0.564,0.0,0.034,0.126,0.237,0.0,0.018,0.021],"H":[0.303,0.287,0.11,0.149,0.085,0.042,0.005,0.02],"Q":[0.239,0.156,0.212,0.211,0.101,0.063,0.011,0.007],"E":[0.025,0.089,0.102,0.545,0.035,0.141,0.031,0.032],"Ur":[0.004,0.07,0.18,0.301,0.033,0.344,0.032,0.036],"Uh":[0.04,0.117,0.161,0.266,0.037,0.291,0.036,0.052],"T":[0.004,0.073,0.09,0.385,0.018,0.263,0.15,0.017],"Tr":[0.005,0.03,0.093,0.66,0.012,0.099,0.075,0.026]},"4":{"R":[0.679,0.0,0.03,0.087,0.176,0.0,0.014,0.014],"H":[0.335,0.319,0.046,0.114,0.073,0.09,0.005,0.019],"Q":[0.171,0.166,0.252,0.238,0.036,0.106,0.012,0.019],"E":[0.048,0.087,0.111,0.519,0.034,0.115,0.056,0.029],"Ur":[0.021,0.087,0.15,0.354,0.055,0.24,0.06,0.033],"Uh":[0.041,0.145,0.122,0.247,0.046,0.298,0.054,0.047],"T":[0.006,0.038,0.085,0.491,0.068,0.068,0.113,0.131],"Tr":[0.005,0.032,0.04,0.426,0.019,0.269,0.072,0.138]}},"pc":{"maj":{"on":[0.158,0.008,0.113,0.043,0.167,0.052,0.029,0.188,0.013,0.08,0.024,0.127],"off":[0.167,0.021,0.104,0.025,0.14,0.065,0.049,0.181,0.034,0.076,0.022,0.115]},"min":{"on":[0.135,0.033,0.087,0.201,0.017,0.112,0.021,0.156,0.017,0.075,0.067,0.079],"off":[0.126,0.032,0.135,0.144,0.035,0.098,0.037,0.141,0.037,0.053,0.086,0.075]},"dom":{"on":[0.145,0.035,0.115,0.04,0.118,0.07,0.036,0.142,0.034,0.099,0.138,0.029],"off":[0.121,0.043,0.116,0.044,0.096,0.078,0.055,0.144,0.038,0.104,0.115,0.046]},"domalt":{"on":[0.18,0.069,0.028,0.043,0.113,0.089,0.018,0.166,0.092,0.043,0.119,0.04],"off":[0.135,0.091,0.045,0.101,0.093,0.095,0.043,0.122,0.079,0.032,0.125,0.04]},"hdim":{"on":[0.091,0.085,0.022,0.197,0.065,0.085,0.137,0.057,0.017,0.105,0.101,0.039],"off":[0.128,0.09,0.038,0.092,0.032,0.166,0.094,0.072,0.059,0.042,0.062,0.124]},"dim":{"on":[0.029,0.045,0.601,0.04,0.029,0.012,0.042,0.025,0.053,0.052,0.031,0.04],"off":[0.135,0.038,0.219,0.048,0.13,0.118,0.048,0.032,0.029,0.043,0.122,0.037]}},"iv":[0.0012,0.0005,0.0005,0.0024,0.0042,0.0087,0.0089,0.0317,0.0654,0.0953,0.1478,0.143,0.0352,0.1418,0.1168,0.0932,0.0437,0.0244,0.0082,0.0122,0.0046,0.0034,0.0019,0.0038,0.0014],"stats":{"ctOn":0.64,"chrom":0.193,"eighth":0.751,"trip":0.08,"phraseMed":10,"phLen":[3.4,5.4,9.6],"gap":[2.0,2.9,3.9]},"label":"Sonny Rollins 계열","swingOff":0.014,"n":2618,"solos":7},"dgordon":{"rhy":{"1":{"R":[0.333,0.0,0.039,0.193,0.387,0.0,0.026,0.022],"H":[0.347,0.157,0.088,0.11,0.22,0.046,0.005,0.026],"Q":[0.27,0.116,0.202,0.183,0.124,0.041,0.02,0.045],"E":[0.051,0.111,0.2,0.387,0.035,0.139,0.042,0.036],"Ur":[0.007,0.137,0.154,0.325,0.091,0.2,0.029,0.055],"Uh":[0.017,0.103,0.189,0.276,0.04,0.312,0.025,0.039],"T":[0.01,0.122,0.176,0.366,0.014,0.143,0.12,0.049],"Tr":[0.004,0.059,0.175,0.329,0.14,0.169,0.085,0.038]},"2":{"R":[0.397,0.0,0.022,0.2,0.299,0.0,0.05,0.033],"H":[0.249,0.207,0.039,0.172,0.107,0.192,0.025,0.009],"Q":[0.133,0.14,0.184,0.176,0.099,0.213,0.041,0.014],"E":[0.04,0.106,0.091,0.484,0.033,0.169,0.049,0.029],"Ur":[0.006,0.117,0.074,0.292,0.06,0.324,0.071,0.056],"Uh":[0.014,0.154,0.11,0.213,0.059,0.389,0.023,0.039],"T":[0.005,0.048,0.075,0.566,0.014,0.076,0.133,0.083],"Tr":[0.003,0.048,0.078,0.453,0.015,0.209,0.112,0.082]},"3":{"R":[0.54,0.0,0.024,0.184,0.158,0.0,0.051,0.043],"H":[0.397,0.218,0.096,0.151,0.047,0.061,0.021,0.008],"Q":[0.161,0.21,0.233,0.267,0.076,0.035,0.011,0.007],"E":[0.022,0.089,0.134,0.471,0.043,0.151,0.059,0.03],"Ur":[0.014,0.103,0.173,0.31,0.049,0.28,0.029,0.043],"Uh":[0.007,0.103,0.149,0.265,0.035,0.371,0.027,0.043],"T":[0.004,0.064,0.132,0.46,0.035,0.174,0.079,0.052],"Tr":[0.005,0.03,0.098,0.443,0.09,0.151,0.079,0.104]},"4":{"R":[0.652,0.0,0.014,0.097,0.182,0.0,0.024,0.031],"H":[0.356,0.209,0.043,0.095,0.138,0.13,0.013,0.016],"Q":[0.16,0.115,0.142,0.29,0.074,0.185,0.019,0.014],"E":[0.041,0.12,0.089,0.442,0.047,0.179,0.045,0.038],"Ur":[0.009,0.127,0.062,0.335,0.038,0.297,0.094,0.038],"Uh":[0.023,0.124,0.115,0.292,0.046,0.33,0.036,0.034],"T":[0.006,0.126,0.077,0.377,0.016,0.178,0.171,0.049],"Tr":[0.031,0.11,0.118,0.322,0.019,0.282,0.05,0.069]}},"pc":{"maj":{"on":[0.152,0.008,0.167,0.044,0.123,0.02,0.011,0.221,0.008,0.091,0.024,0.13],"off":[0.195,0.011,0.121,0.032,0.118,0.072,0.033,0.205,0.014,0.066,0.039,0.092]},"min":{"on":[0.143,0.024,0.11,0.157,0.017,0.11,0.038,0.155,0.039,0.077,0.089,0.04],"off":[0.137,0.046,0.119,0.129,0.035,0.11,0.038,0.134,0.042,0.06,0.102,0.047]},"dom":{"on":[0.171,0.037,0.109,0.042,0.103,0.076,0.038,0.149,0.033,0.108,0.096,0.037],"off":[0.133,0.04,0.106,0.043,0.098,0.093,0.042,0.16,0.038,0.1,0.103,0.044]},"domalt":{"on":[0.126,0.071,0.052,0.058,0.126,0.092,0.022,0.163,0.109,0.04,0.108,0.033],"off":[0.131,0.067,0.067,0.058,0.087,0.105,0.046,0.134,0.094,0.045,0.126,0.04]},"hdim":{"on":[0.16,0.077,0.068,0.151,0.072,0.107,0.135,0.033,0.032,0.057,0.072,0.035],"off":[0.113,0.083,0.039,0.152,0.041,0.168,0.103,0.064,0.051,0.042,0.114,0.032]},"dim":{"on":[0.029,0.045,0.029,0.611,0.029,0.012,0.042,0.025,0.053,0.052,0.031,0.04],"off":[0.04,0.038,0.029,0.62,0.035,0.023,0.048,0.032,0.029,0.043,0.027,0.037]}},"iv":[0.0011,0.0002,0.0008,0.0033,0.0061,0.0084,0.0053,0.0314,0.0522,0.0919,0.1611,0.1356,0.0515,0.1357,0.1223,0.0898,0.0389,0.0322,0.0068,0.0129,0.0043,0.0041,0.0019,0.0012,0.0012],"stats":{"ctOn":0.606,"chrom":0.185,"eighth":0.754,"trip":0.1,"phraseMed":12,"phLen":[3.3,6.1,9.8],"gap":[1.1,1.7,2.5]},"label":"Dexter Gordon 계열","swingOff":0.025,"n":4149,"solos":6},"baker":{"rhy":{"1":{"R":[0.526,0.0,0.091,0.116,0.247,0.0,0.005,0.016],"H":[0.348,0.222,0.165,0.102,0.093,0.044,0.024,0.002],"Q":[0.08,0.076,0.468,0.253,0.07,0.043,0.006,0.003],"E":[0.018,0.172,0.15,0.488,0.034,0.106,0.013,0.019],"Ur":[0.004,0.181,0.179,0.33,0.071,0.182,0.041,0.012],"Uh":[0.006,0.309,0.159,0.216,0.018,0.253,0.03,0.009],"T":[0.007,0.03,0.36,0.456,0.008,0.059,0.068,0.012],"Tr":[0.001,0.207,0.117,0.487,0.022,0.12,0.028,0.017]},"2":{"R":[0.646,0.0,0.009,0.101,0.182,0.0,0.037,0.025],"H":[0.19,0.279,0.102,0.211,0.044,0.154,0.014,0.005],"Q":[0.131,0.177,0.19,0.214,0.093,0.184,0.007,0.003],"E":[0.024,0.097,0.112,0.592,0.03,0.098,0.026,0.022],"Ur":[0.054,0.13,0.096,0.379,0.065,0.218,0.034,0.025],"Uh":[0.032,0.171,0.069,0.326,0.061,0.316,0.01,0.014],"T":[0.007,0.198,0.405,0.21,0.013,0.068,0.086,0.013],"Tr":[0.012,0.039,0.263,0.523,0.015,0.082,0.035,0.032]},"3":{"R":[0.56,0.0,0.101,0.123,0.205,0.0,0.005,0.006],"H":[0.279,0.227,0.184,0.182,0.064,0.057,0.005,0.002],"Q":[0.112,0.136,0.308,0.317,0.075,0.022,0.025,0.005],"E":[0.026,0.17,0.099,0.52,0.015,0.139,0.024,0.007],"Ur":[0.007,0.283,0.083,0.288,0.039,0.225,0.032,0.044],"Uh":[0.036,0.223,0.2,0.286,0.039,0.191,0.014,0.011],"T":[0.011,0.037,0.17,0.613,0.014,0.066,0.079,0.011],"Tr":[0.002,0.036,0.064,0.33,0.016,0.488,0.042,0.022]},"4":{"R":[0.686,0.0,0.044,0.052,0.205,0.0,0.01,0.003],"H":[0.231,0.216,0.095,0.202,0.084,0.154,0.011,0.006],"Q":[0.118,0.13,0.222,0.292,0.103,0.121,0.007,0.007],"E":[0.038,0.076,0.099,0.616,0.036,0.097,0.027,0.011],"Ur":[0.006,0.13,0.172,0.395,0.024,0.219,0.034,0.021],"Uh":[0.049,0.068,0.125,0.346,0.069,0.262,0.029,0.052],"T":[0.006,0.03,0.065,0.726,0.017,0.07,0.067,0.019],"Tr":[0.001,0.067,0.031,0.15,0.024,0.132,0.041,0.553]}},"pc":{"maj":{"on":[0.17,0.015,0.118,0.023,0.128,0.051,0.02,0.176,0.021,0.132,0.03,0.116],"off":[0.138,0.016,0.126,0.031,0.108,0.071,0.026,0.166,0.019,0.141,0.029,0.128]},"min":{"on":[0.15,0.031,0.104,0.169,0.025,0.136,0.034,0.143,0.037,0.044,0.102,0.026],"off":[0.131,0.032,0.118,0.158,0.023,0.143,0.034,0.141,0.039,0.044,0.102,0.033]},"dom":{"on":[0.139,0.036,0.104,0.035,0.102,0.099,0.033,0.16,0.043,0.132,0.098,0.02],"off":[0.147,0.06,0.099,0.045,0.084,0.123,0.053,0.123,0.06,0.092,0.085,0.029]},"domalt":{"on":[0.172,0.071,0.039,0.035,0.104,0.086,0.011,0.104,0.103,0.043,0.205,0.025],"off":[0.135,0.06,0.055,0.085,0.082,0.103,0.026,0.153,0.118,0.025,0.124,0.033]},"hdim":{"on":[0.153,0.12,0.025,0.172,0.054,0.131,0.057,0.017,0.037,0.044,0.158,0.03],"off":[0.132,0.169,0.026,0.197,0.018,0.098,0.096,0.029,0.052,0.048,0.115,0.02]},"dim":{"on":[0.122,0.164,0.035,0.102,0.091,0.015,0.111,0.095,0.105,0.063,0.02,0.078],"off":[0.044,0.022,0.093,0.097,0.101,0.016,0.25,0.044,0.106,0.136,0.027,0.063]}},"iv":[0.0006,0.0002,0.0008,0.0033,0.0035,0.0073,0.0056,0.0246,0.0453,0.092,0.1694,0.1274,0.0506,0.1392,0.1559,0.0954,0.0411,0.0197,0.0034,0.0074,0.0021,0.0021,0.001,0.0009,0.0011],"stats":{"ctOn":0.597,"chrom":0.142,"eighth":0.748,"trip":0.03,"phraseMed":15,"phLen":[4.9,11.3,17.8],"gap":[1.6,2.3,3.7]},"label":"Chet Baker 계열","swingOff":-0.017,"n":1428,"solos":8},"getz":{"rhy":{"1":{"R":[0.483,0.0,0.1,0.114,0.288,0.0,0.005,0.01],"H":[0.37,0.232,0.112,0.089,0.121,0.039,0.033,0.002],"Q":[0.137,0.1,0.391,0.219,0.094,0.05,0.006,0.003],"E":[0.018,0.095,0.146,0.572,0.02,0.108,0.025,0.016],"Ur":[0.004,0.232,0.103,0.285,0.107,0.21,0.038,0.02],"Uh":[0.006,0.209,0.167,0.37,0.04,0.153,0.046,0.009],"T":[0.007,0.112,0.179,0.354,0.028,0.098,0.21,0.012],"Tr":[0.001,0.035,0.288,0.318,0.021,0.249,0.072,0.017]},"2":{"R":[0.712,0.0,0.016,0.09,0.135,0.0,0.029,0.018],"H":[0.235,0.273,0.104,0.166,0.085,0.105,0.012,0.02],"Q":[0.135,0.17,0.2,0.231,0.064,0.179,0.013,0.009],"E":[0.026,0.107,0.085,0.567,0.026,0.137,0.021,0.031],"Ur":[0.031,0.156,0.069,0.331,0.082,0.179,0.081,0.072],"Uh":[0.022,0.207,0.057,0.302,0.053,0.301,0.044,0.013],"T":[0.032,0.077,0.085,0.249,0.038,0.218,0.287,0.013],"Tr":[0.119,0.145,0.085,0.495,0.014,0.079,0.033,0.031]},"3":{"R":[0.564,0.0,0.117,0.099,0.203,0.0,0.01,0.006],"H":[0.323,0.168,0.125,0.223,0.092,0.056,0.011,0.002],"Q":[0.114,0.141,0.357,0.282,0.041,0.041,0.01,0.015],"E":[0.014,0.084,0.104,0.65,0.017,0.101,0.019,0.012],"Ur":[0.007,0.169,0.102,0.309,0.045,0.227,0.125,0.017],"Uh":[0.042,0.144,0.133,0.439,0.026,0.179,0.02,0.017],"T":[0.032,0.121,0.106,0.428,0.013,0.084,0.204,0.011],"Tr":[0.002,0.12,0.145,0.293,0.072,0.194,0.125,0.05]},"4":{"R":[0.66,0.0,0.02,0.099,0.193,0.0,0.025,0.003],"H":[0.417,0.191,0.062,0.086,0.12,0.097,0.003,0.024],"Q":[0.162,0.112,0.284,0.225,0.08,0.092,0.019,0.026],"E":[0.027,0.07,0.092,0.582,0.059,0.115,0.038,0.017],"Ur":[0.005,0.052,0.091,0.429,0.051,0.249,0.089,0.034],"Uh":[0.027,0.048,0.09,0.422,0.078,0.269,0.036,0.029],"T":[0.005,0.109,0.06,0.308,0.016,0.256,0.172,0.072],"Tr":[0.002,0.17,0.03,0.359,0.022,0.341,0.039,0.038]}},"pc":{"maj":{"on":[0.162,0.013,0.109,0.046,0.132,0.073,0.038,0.169,0.022,0.1,0.02,0.116],"off":[0.202,0.012,0.113,0.048,0.125,0.058,0.045,0.154,0.04,0.091,0.029,0.083]},"min":{"on":[0.156,0.05,0.092,0.18,0.033,0.095,0.033,0.136,0.038,0.04,0.112,0.034],"off":[0.125,0.048,0.118,0.149,0.022,0.113,0.038,0.137,0.05,0.05,0.105,0.045]},"dom":{"on":[0.147,0.041,0.089,0.039,0.119,0.08,0.037,0.154,0.039,0.112,0.107,0.035],"off":[0.135,0.048,0.103,0.045,0.098,0.087,0.045,0.142,0.044,0.113,0.092,0.048]},"domalt":{"on":[0.182,0.06,0.019,0.039,0.096,0.108,0.011,0.149,0.086,0.043,0.191,0.015],"off":[0.193,0.068,0.033,0.099,0.071,0.08,0.023,0.111,0.096,0.033,0.139,0.055]},"hdim":{"on":[0.061,0.115,0.012,0.176,0.063,0.089,0.043,0.016,0.107,0.127,0.102,0.088],"off":[0.086,0.119,0.036,0.239,0.066,0.122,0.074,0.039,0.072,0.015,0.12,0.011]},"dim":{"on":[0.124,0.069,0.067,0.071,0.044,0.031,0.062,0.081,0.073,0.199,0.036,0.143],"off":[0.095,0.036,0.066,0.047,0.087,0.03,0.116,0.087,0.093,0.12,0.079,0.142]}},"iv":[0.0015,0.0007,0.0009,0.0023,0.004,0.0085,0.0062,0.0331,0.0588,0.0956,0.1486,0.1384,0.0431,0.1555,0.1174,0.0932,0.0332,0.0286,0.0055,0.0101,0.0044,0.0037,0.0025,0.0014,0.0029],"stats":{"ctOn":0.596,"chrom":0.202,"eighth":0.763,"trip":0.073,"phraseMed":14,"phLen":[5.6,8.7,14.4],"gap":[1.5,2.5,3.9]},"label":"Stan Getz 계열","swingOff":-0.004,"n":3550,"solos":5},"miles":{"rhy":{"1":{"R":[0.588,0.0,0.059,0.084,0.241,0.0,0.009,0.018],"H":[0.365,0.222,0.171,0.114,0.089,0.03,0.005,0.004],"Q":[0.237,0.091,0.345,0.171,0.105,0.033,0.01,0.007],"E":[0.034,0.141,0.162,0.445,0.031,0.137,0.028,0.023],"Ur":[0.03,0.168,0.145,0.256,0.077,0.272,0.025,0.027],"Uh":[0.022,0.184,0.163,0.244,0.034,0.292,0.02,0.04],"T":[0.009,0.169,0.116,0.218,0.013,0.152,0.189,0.135],"Tr":[0.004,0.129,0.131,0.278,0.038,0.301,0.024,0.095]},"2":{"R":[0.587,0.0,0.057,0.131,0.187,0.0,0.017,0.02],"H":[0.246,0.283,0.126,0.1,0.072,0.138,0.01,0.025],"Q":[0.166,0.157,0.211,0.163,0.087,0.189,0.012,0.016],"E":[0.064,0.111,0.09,0.506,0.038,0.142,0.036,0.013],"Ur":[0.035,0.08,0.14,0.294,0.086,0.295,0.036,0.034],"Uh":[0.039,0.149,0.126,0.231,0.047,0.334,0.032,0.043],"T":[0.005,0.058,0.122,0.281,0.053,0.271,0.148,0.062],"Tr":[0.003,0.069,0.075,0.363,0.037,0.29,0.038,0.125]},"3":{"R":[0.593,0.0,0.078,0.155,0.141,0.0,0.011,0.023],"H":[0.298,0.222,0.25,0.096,0.052,0.066,0.009,0.007],"Q":[0.146,0.159,0.34,0.203,0.07,0.04,0.021,0.021],"E":[0.017,0.097,0.138,0.506,0.035,0.152,0.039,0.015],"Ur":[0.031,0.141,0.164,0.234,0.046,0.296,0.034,0.054],"Uh":[0.034,0.164,0.132,0.277,0.041,0.286,0.023,0.044],"T":[0.064,0.058,0.072,0.333,0.047,0.322,0.088,0.016],"Tr":[0.005,0.111,0.063,0.355,0.032,0.321,0.047,0.066]},"4":{"R":[0.729,0.0,0.032,0.069,0.14,0.0,0.012,0.018],"H":[0.29,0.263,0.129,0.104,0.07,0.128,0.005,0.011],"Q":[0.181,0.136,0.248,0.184,0.052,0.165,0.014,0.02],"E":[0.045,0.112,0.089,0.502,0.035,0.154,0.033,0.029],"Ur":[0.041,0.126,0.138,0.328,0.068,0.242,0.031,0.028],"Uh":[0.048,0.122,0.126,0.259,0.038,0.335,0.033,0.039],"T":[0.005,0.059,0.132,0.215,0.065,0.29,0.183,0.05],"Tr":[0.004,0.07,0.158,0.311,0.037,0.277,0.044,0.1]}},"pc":{"maj":{"on":[0.138,0.025,0.121,0.039,0.143,0.064,0.048,0.164,0.037,0.084,0.031,0.105],"off":[0.103,0.037,0.128,0.056,0.117,0.07,0.064,0.137,0.044,0.094,0.041,0.109]},"min":{"on":[0.149,0.039,0.116,0.156,0.036,0.116,0.039,0.133,0.037,0.063,0.074,0.042],"off":[0.122,0.038,0.149,0.116,0.039,0.134,0.036,0.126,0.036,0.061,0.092,0.051]},"dom":{"on":[0.171,0.043,0.097,0.059,0.091,0.08,0.036,0.143,0.043,0.099,0.106,0.032],"off":[0.141,0.047,0.103,0.054,0.088,0.092,0.047,0.131,0.05,0.103,0.097,0.046]},"domalt":{"on":[0.112,0.08,0.029,0.108,0.107,0.067,0.062,0.138,0.1,0.042,0.109,0.047],"off":[0.13,0.08,0.054,0.115,0.086,0.088,0.068,0.119,0.07,0.033,0.107,0.049]},"hdim":{"on":[0.115,0.143,0.02,0.222,0.057,0.143,0.087,0.015,0.017,0.024,0.106,0.051],"off":[0.091,0.121,0.053,0.104,0.014,0.127,0.057,0.07,0.091,0.09,0.126,0.055]},"dim":{"on":[0.068,0.102,0.067,0.094,0.069,0.028,0.101,0.059,0.123,0.122,0.071,0.096],"off":[0.093,0.087,0.067,0.111,0.081,0.053,0.112,0.074,0.068,0.103,0.062,0.087]}},"iv":[0.0004,0.0003,0.0014,0.0032,0.003,0.0076,0.0048,0.0237,0.0453,0.0758,0.1595,0.1439,0.0672,0.1782,0.1495,0.0625,0.0307,0.0206,0.0056,0.0085,0.0037,0.0021,0.0013,0.0007,0.0005],"stats":{"ctOn":0.544,"chrom":0.233,"eighth":0.698,"trip":0.061,"phraseMed":9,"phLen":[4.3,6.5,10.8],"gap":[2.0,3.2,4.6]},"label":"Miles Davis 계열","swingOff":-0.026,"n":5348,"solos":15},"lyoung":{"rhy":{"1":{"R":[0.512,0.0,0.065,0.101,0.264,0.0,0.037,0.021],"H":[0.328,0.166,0.169,0.137,0.112,0.059,0.015,0.015],"Q":[0.115,0.105,0.368,0.299,0.057,0.039,0.006,0.01],"E":[0.007,0.108,0.167,0.47,0.018,0.189,0.029,0.011],"Ur":[0.026,0.202,0.113,0.328,0.026,0.24,0.052,0.013],"Uh":[0.011,0.277,0.185,0.257,0.031,0.199,0.024,0.016],"T":[0.003,0.166,0.142,0.478,0.018,0.118,0.056,0.019],"Tr":[0.001,0.108,0.128,0.29,0.018,0.246,0.038,0.17]},"2":{"R":[0.43,0.0,0.056,0.137,0.296,0.0,0.037,0.044],"H":[0.159,0.2,0.093,0.155,0.084,0.253,0.027,0.028],"Q":[0.135,0.212,0.143,0.196,0.058,0.22,0.019,0.018],"E":[0.019,0.193,0.116,0.426,0.026,0.173,0.024,0.024],"Ur":[0.004,0.044,0.134,0.476,0.018,0.212,0.03,0.082],"Uh":[0.032,0.216,0.124,0.284,0.025,0.274,0.026,0.019],"T":[0.015,0.033,0.333,0.469,0.013,0.042,0.064,0.03],"Tr":[0.006,0.302,0.035,0.461,0.014,0.08,0.062,0.04]},"3":{"R":[0.543,0.0,0.044,0.175,0.216,0.0,0.011,0.011],"H":[0.212,0.223,0.16,0.183,0.132,0.066,0.006,0.019],"Q":[0.086,0.193,0.334,0.251,0.048,0.061,0.007,0.019],"E":[0.019,0.153,0.13,0.5,0.027,0.119,0.031,0.019],"Ur":[0.008,0.163,0.176,0.356,0.037,0.189,0.023,0.049],"Uh":[0.009,0.202,0.199,0.329,0.022,0.184,0.032,0.024],"T":[0.002,0.135,0.131,0.395,0.014,0.238,0.062,0.023],"Tr":[0.009,0.026,0.17,0.339,0.01,0.317,0.103,0.027]},"4":{"R":[0.509,0.0,0.045,0.098,0.329,0.0,0.011,0.008],"H":[0.249,0.251,0.073,0.097,0.113,0.195,0.003,0.02],"Q":[0.167,0.194,0.168,0.215,0.084,0.138,0.02,0.014],"E":[0.014,0.139,0.116,0.447,0.019,0.189,0.046,0.031],"Ur":[0.005,0.067,0.112,0.458,0.02,0.279,0.035,0.025],"Uh":[0.011,0.118,0.17,0.248,0.017,0.368,0.035,0.033],"T":[0.008,0.033,0.056,0.4,0.019,0.305,0.049,0.13],"Tr":[0.005,0.132,0.051,0.282,0.011,0.213,0.164,0.141]}},"pc":{"maj":{"on":[0.179,0.015,0.105,0.093,0.114,0.064,0.025,0.19,0.02,0.12,0.028,0.047],"off":[0.159,0.017,0.087,0.055,0.151,0.069,0.05,0.192,0.031,0.106,0.025,0.059]},"min":{"on":[0.168,0.051,0.039,0.165,0.012,0.094,0.053,0.202,0.043,0.067,0.073,0.033],"off":[0.155,0.023,0.112,0.154,0.026,0.092,0.04,0.159,0.058,0.047,0.098,0.037]},"dom":{"on":[0.174,0.029,0.128,0.054,0.115,0.069,0.027,0.119,0.043,0.096,0.113,0.031],"off":[0.155,0.045,0.12,0.061,0.103,0.085,0.04,0.114,0.045,0.102,0.085,0.048]},"domalt":{"on":[0.169,0.17,0.064,0.114,0.064,0.084,0.017,0.103,0.082,0.04,0.074,0.019],"off":[0.131,0.068,0.05,0.057,0.067,0.073,0.047,0.132,0.098,0.026,0.202,0.051]},"hdim":{"on":[0.134,0.1,0.009,0.073,0.031,0.169,0.144,0.035,0.065,0.052,0.167,0.021],"off":[0.118,0.07,0.04,0.175,0.025,0.119,0.105,0.042,0.076,0.113,0.095,0.021]},"dim":{"on":[0.067,0.025,0.012,0.134,0.052,0.047,0.16,0.058,0.052,0.266,0.038,0.09],"off":[0.078,0.029,0.044,0.075,0.048,0.035,0.24,0.049,0.121,0.155,0.035,0.091]}},"iv":[0.0027,0.001,0.0013,0.0034,0.0054,0.0098,0.0098,0.0376,0.0555,0.1044,0.1302,0.0915,0.0493,0.17,0.118,0.0997,0.0354,0.0412,0.0112,0.0122,0.0034,0.0026,0.0011,0.0006,0.0028],"stats":{"ctOn":0.622,"chrom":0.188,"eighth":0.74,"trip":0.053,"phraseMed":14,"phLen":[6.0,10.0,15.4],"gap":[1.3,2.1,2.9]},"label":"Lester Young 계열","swingOff":0.019,"n":1787,"solos":7}},"cells":[{"id":"w0","cls":"min","s":0,"iv":[2,1,2],"np":18,"by":["baker","cbrown","coltrane","dorham","konitz","morgan","rollins"],"src":"WJD","name":"1-2-♭3-4"},{"id":"w1","cls":"min","s":3,"iv":[2,2,3],"np":16,"by":["baker","coltrane","dgordon","dorham","miles"],"src":"WJD","name":"♭3-4-5-♭7"},{"id":"w2","cls":"dom","s":7,"iv":[2,1,2],"np":15,"by":["cbrown","coltrane","getz","henderson","miles","rollins"],"src":"WJD","name":"5-6-♭7-1"},{"id":"w3","cls":"maj","s":2,"iv":[-3,1,2],"np":15,"by":["dorham","konitz","miles","rollins"],"src":"WJD","name":"2-7-1-2"},{"id":"w4","cls":"maj","s":2,"iv":[-2,-1,1],"np":13,"by":["cbrown","konitz","rollins"],"src":"WJD","name":"2-1-7-1"},{"id":"w5","cls":"dom","s":7,"iv":[-2,-1,-2],"np":13,"by":["baker","coltrane","dorham","getz","henderson","konitz","miles"],"src":"WJD","name":"5-4-3-2"},{"id":"w6","cls":"dom","s":0,"iv":[-2,-1,-2],"np":12,"by":["cbrown","coltrane","konitz","parker"],"src":"WJD","name":"1-♭7-6-5"},{"id":"w7","cls":"maj","s":7,"iv":[-2,-1,-2],"np":11,"by":["cbrown","coltrane","dorham","getz","henderson","parker"],"src":"WJD","name":"5-4-3-2"},{"id":"w8","cls":"dom","s":4,"iv":[-2,-2,-2],"np":12,"by":["cbrown","coltrane","jj","miles"],"src":"WJD","name":"3-2-1-♭7"},{"id":"w9","cls":"maj","s":0,"iv":[2,2,3],"np":9,"by":["cbrown","coltrane","dorham","parker"],"src":"WJD","name":"1-2-3-5"},{"id":"w10","cls":"dom","s":10,"iv":[-1,-2,-2],"np":10,"by":["konitz","morgan","parker"],"src":"WJD","name":"♭7-6-5-4"},{"id":"w11","cls":"dom","s":10,"iv":[2,2,2],"np":10,"by":["coltrane","dgordon","getz","henderson"],"src":"WJD","name":"♭7-1-2-3"},{"id":"w12","cls":"min","s":2,"iv":[-3,1,2],"np":10,"by":["cbrown","henderson","morgan","parker","rollins"],"src":"WJD","name":"2-7-1-2"},{"id":"w13","cls":"domalt","s":7,"iv":[-2,-1,3],"np":9,"by":["baker","cbrown","coltrane","parker","rollins"],"src":"WJD","name":"5-4-3-5"},{"id":"w14","cls":"dom","s":0,"iv":[-2,-3,1],"np":9,"by":["cbrown","dorham","konitz"],"src":"WJD","name":"1-♭7-5-♭6"},{"id":"w15","cls":"dom","s":4,"iv":[3,3,2],"np":9,"by":["coltrane","getz","henderson"],"src":"WJD","name":"3-5-♭7-1"},{"id":"w16","cls":"dom","s":2,"iv":[2,1,2],"np":9,"by":["getz","henderson","morgan"],"src":"WJD","name":"2-3-4-5"},{"id":"w17","cls":"maj","s":7,"iv":[-3,-2,-2],"np":8,"by":["cbrown","coltrane","henderson","konitz"],"src":"WJD","name":"5-3-2-1"},{"id":"w18","cls":"dom","s":4,"iv":[-1,-1,-1],"np":8,"by":["getz","henderson"],"src":"WJD","name":"3-♭3-2-♭2"},{"id":"w19","cls":"maj","s":2,"iv":[-2,-1,-2],"np":8,"by":["cbrown","coltrane","dorham","konitz","miles","parker","rollins"],"src":"WJD","name":"2-1-7-6"},{"id":"w20","cls":"dom","s":4,"iv":[1,2,2],"np":8,"by":["coltrane","getz","henderson","morgan"],"src":"WJD","name":"3-4-5-6"},{"id":"w21","cls":"min","s":9,"iv":[-2,-2,-1],"np":8,"by":["cannon","cbrown","coltrane","dorham","miles"],"src":"WJD","name":"6-5-4-3"},{"id":"w22","cls":"min","s":7,"iv":[-4,-1,-2],"np":8,"by":["cbrown","coltrane","morgan"],"src":"WJD","name":"5-♭3-2-1"},{"id":"w23","cls":"maj","s":11,"iv":[-1,-1,-1],"np":8,"by":["cbrown","coltrane","dorham","henderson"],"src":"WJD","name":"7-♭7-6-♭6"},{"id":"w24","cls":"maj","s":4,"iv":[3,4,3],"np":8,"by":["baker","cannon"],"src":"WJD","name":"3-5-7-2"},{"id":"w25","cls":"dom","s":4,"iv":[-2,-2,-1],"np":8,"by":["coltrane","getz","jj","morgan","parker"],"src":"WJD","name":"3-2-1-7"},{"id":"w26","cls":"min","s":7,"iv":[2,1,2],"np":8,"by":["cbrown","coltrane","getz"],"src":"WJD","name":"5-6-♭7-1"},{"id":"w27","cls":"dom","s":0,"iv":[2,2,3],"np":6,"by":["coltrane"],"src":"WJD","name":"1-2-3-5"},{"id":"w28","cls":"maj","s":0,"iv":[2,2,1],"np":7,"by":["cbrown","coltrane","konitz","miles"],"src":"WJD","name":"1-2-3-4"},{"id":"w29","cls":"dom","s":4,"iv":[-3,-1,-2],"np":7,"by":["cannon"],"src":"WJD","name":"3-♭2-1-♭7"},{"id":"w30","cls":"min","s":7,"iv":[-1,-1,-1],"np":7,"by":["cbrown","miles"],"src":"WJD","name":"5-♭5-4-3"},{"id":"w31","cls":"dom","s":0,"iv":[-1,-1,-1],"np":6,"by":["coltrane","dorham","getz","konitz","parker"],"src":"WJD","name":"1-7-♭7-6"},{"id":"w32","cls":"dom","s":2,"iv":[-1,-1,-1],"np":7,"by":[],"src":"WJD","name":"2-♭2-1-7"},{"id":"w33","cls":"dom","s":2,"iv":[-2,-2,-1],"np":7,"by":["getz","konitz","parker"],"src":"WJD","name":"2-1-♭7-6"},{"id":"w34","cls":"dom","s":4,"iv":[3,3,4],"np":6,"by":["coltrane","getz","parker"],"src":"WJD","name":"3-5-♭7-2"},{"id":"w35","cls":"dom","s":9,"iv":[-1,-1,-1],"np":7,"by":["henderson","parker"],"src":"WJD","name":"6-♭6-5-♭5"},{"id":"w36","cls":"maj","s":4,"iv":[-1,-1,-1],"np":7,"by":["baker"],"src":"WJD","name":"3-♭3-2-♭2"},{"id":"w37","cls":"min","s":5,"iv":[-1,-1,-1],"np":7,"by":["coltrane","dorham","konitz","parker","rollins"],"src":"WJD","name":"4-3-♭3-2"},{"id":"w38","cls":"maj","s":4,"iv":[-2,-2,-1],"np":6,"by":["konitz","parker","rollins"],"src":"WJD","name":"3-2-1-7"},{"id":"w39","cls":"dom","s":0,"iv":[-1,-1,2],"np":6,"by":["cbrown","coltrane"],"src":"WJD","name":"1-7-♭7-1"},{"id":"w40","cls":"dom","s":3,"iv":[-2,-1,-2],"np":6,"by":["coltrane","dorham","morgan"],"src":"WJD","name":"♭3-♭2-1-♭7"},{"id":"w41","cls":"dom","s":7,"iv":[-2,-1,3],"np":6,"by":["baker","konitz","parker","rollins"],"src":"WJD","name":"5-4-3-5"},{"id":"w42","cls":"dom","s":7,"iv":[-3,-4,-3],"np":6,"by":["getz","konitz","lyoung"],"src":"WJD","name":"5-3-1-6"},{"id":"w43","cls":"dom","s":8,"iv":[1,1,1],"np":6,"by":["jj","lyoung"],"src":"WJD","name":"♭6-6-♭7-7"},{"id":"w44","cls":"min","s":3,"iv":[-1,-1,-1],"np":6,"by":["miles"],"src":"WJD","name":"♭3-2-♭2-1"},{"id":"w45","cls":"dom","s":5,"iv":[2,2,1],"np":6,"by":["cbrown","hubbard"],"src":"WJD","name":"4-5-6-♭7"},{"id":"w46","cls":"min","s":0,"iv":[-2,-3,-4],"np":6,"by":["baker","cannon","coltrane","getz","konitz"],"src":"WJD","name":"1-♭7-5-♭3"},{"id":"w47","cls":"dom","s":7,"iv":[-1,-1,-1],"np":6,"by":["konitz","parker"],"src":"WJD","name":"5-♭5-4-3"},{"id":"w48","cls":"min","s":0,"iv":[-2,-1,-2],"np":6,"by":["cbrown","henderson","parker","rollins"],"src":"WJD","name":"1-♭7-6-5"},{"id":"w49","cls":"min","s":5,"iv":[-3,1,2],"np":6,"by":["baker","miles","morgan"],"src":"WJD","name":"4-2-♭3-4"},{"id":"w50","cls":"maj","s":7,"iv":[-3,1,2],"np":6,"by":["lyoung","miles"],"src":"WJD","name":"5-3-4-5"},{"id":"w51","cls":"maj","s":7,"iv":[-1,-1,-1],"np":5,"by":["cannon","dorham","konitz","miles"],"src":"WJD","name":"5-♭5-4-3"},{"id":"w52","cls":"maj","s":4,"iv":[3,2,3],"np":5,"by":["coltrane"],"src":"WJD","name":"3-5-6-1"},{"id":"w53","cls":"dom","s":3,"iv":[1,1,1],"np":5,"by":["getz","jj","konitz"],"src":"WJD","name":"♭3-3-4-♭5"},{"id":"w54","cls":"domalt","s":0,"iv":[-1,-1,-1],"np":5,"by":[],"src":"WJD","name":"1-7-♭7-6"},{"id":"w55","cls":"dom","s":0,"iv":[-1,-1,4],"np":5,"by":["coltrane","konitz","parker"],"src":"WJD","name":"1-7-♭7-2"},{"id":"w56","cls":"maj","s":7,"iv":[2,2,1],"np":5,"by":["dorham","konitz","miles"],"src":"WJD","name":"5-6-7-1"},{"id":"w57","cls":"min","s":0,"iv":[3,4,3],"np":5,"by":["coltrane","dorham","rollins"],"src":"WJD","name":"1-♭3-5-♭7"},{"id":"w58","cls":"domalt","s":4,"iv":[-3,-1,-2],"np":5,"by":["jj"],"src":"WJD","name":"3-♭2-1-♭7"},{"id":"w59","cls":"min","s":3,"iv":[2,2,2],"np":5,"by":["coltrane"],"src":"WJD","name":"♭3-4-5-6"},{"id":"w60","cls":"dom","s":2,"iv":[-4,-3,-2],"np":5,"by":["getz"],"src":"WJD","name":"2-♭7-5-4"},{"id":"w61","cls":"maj","s":7,"iv":[-3,-4,-3],"np":5,"by":["coltrane"],"src":"WJD","name":"5-3-1-6"},{"id":"w62","cls":"dom","s":9,"iv":[-2,-1,1],"np":5,"by":["dgordon","konitz"],"src":"WJD","name":"6-5-♭5-5"},{"id":"w63","cls":"maj","s":0,"iv":[-1,-2,-1],"np":5,"by":["cannon","getz"],"src":"WJD","name":"1-7-6-♭6"},{"id":"w64","cls":"dom","s":2,"iv":[3,-1,-2],"np":5,"by":["coltrane","jj","parker"],"src":"WJD","name":"2-4-3-2"},{"id":"w65","cls":"maj","s":7,"iv":[-2,-3,1],"np":5,"by":["baker","dorham","miles"],"src":"WJD","name":"5-4-2-♭3"},{"id":"w66","cls":"maj","s":4,"iv":[1,2,2],"np":5,"by":["baker","cbrown","konitz","miles"],"src":"WJD","name":"3-4-5-6"},{"id":"w67","cls":"maj","s":11,"iv":[1,2,2],"np":5,"by":["konitz","miles"],"src":"WJD","name":"7-1-2-3"},{"id":"w68","cls":"domalt","s":7,"iv":[2,1,2],"np":5,"by":["cbrown"],"src":"WJD","name":"5-6-♭7-1"},{"id":"w69","cls":"dom","s":7,"iv":[-2,-3,1],"np":5,"by":["getz","konitz","miles"],"src":"WJD","name":"5-4-2-♭3"},{"id":"w70","cls":"maj","s":9,"iv":[2,1,2],"np":5,"by":["henderson","jj","konitz"],"src":"WJD","name":"6-7-1-2"},{"id":"w71","cls":"dom","s":2,"iv":[-1,-1,-2],"np":5,"by":["coltrane","konitz"],"src":"WJD","name":"2-♭2-1-♭7"},{"id":"w72","cls":"dom","s":9,"iv":[-2,-3,-2],"np":4,"by":["coltrane","getz","konitz"],"src":"WJD","name":"6-5-3-2"},{"id":"w73","cls":"dom","s":10,"iv":[-1,1,-1],"np":5,"by":["getz","jj"],"src":"WJD","name":"♭7-6-♭7-6"},{"id":"w74","cls":"dom","s":5,"iv":[-3,-4,-3],"np":5,"by":[],"src":"WJD","name":"4-2-♭7-5"},{"id":"w75","cls":"dom","s":10,"iv":[-2,-1,-2],"np":5,"by":["cbrown","henderson","parker","rollins"],"src":"WJD","name":"♭7-♭6-5-4"},{"id":"w76","cls":"dom","s":9,"iv":[-2,-1,-2],"np":5,"by":["baker","cbrown"],"src":"WJD","name":"6-5-♭5-3"},{"id":"w77","cls":"min","s":3,"iv":[-2,-1,-2],"np":5,"by":["baker"],"src":"WJD","name":"♭3-♭2-1-♭7"},{"id":"w78","cls":"dom","s":0,"iv":[2,1,2],"np":5,"by":["jj","konitz","miles"],"src":"WJD","name":"1-2-♭3-4"},{"id":"w79","cls":"dom","s":4,"iv":[3,3,3],"np":5,"by":["cbrown","coltrane","konitz"],"src":"WJD","name":"3-5-♭7-♭2"},{"id":"w80","cls":"dom","s":10,"iv":[2,1,2],"np":5,"by":["getz"],"src":"WJD","name":"♭7-1-♭2-♭3"},{"id":"w81","cls":"dom","s":11,"iv":[-1,-1,-1],"np":5,"by":["henderson"],"src":"WJD","name":"7-♭7-6-♭6"},{"id":"w82","cls":"dom","s":5,"iv":[-1,-2,-2],"np":5,"by":["konitz"],"src":"WJD","name":"4-3-2-1"},{"id":"w83","cls":"min","s":0,"iv":[-1,-1,-1],"np":5,"by":["coltrane","dgordon","konitz"],"src":"WJD","name":"1-7-♭7-6"},{"id":"w84","cls":"dom","s":7,"iv":[2,1,1],"np":5,"by":["getz","miles"],"src":"WJD","name":"5-6-♭7-7"},{"id":"w85","cls":"dom","s":2,"iv":[-4,-1,-2],"np":5,"by":["coltrane","getz","rollins"],"src":"WJD","name":"2-♭7-6-5"},{"id":"w86","cls":"maj","s":4,"iv":[3,2,2],"np":4,"by":["dorham","parker"],"src":"WJD","name":"3-5-6-7"},{"id":"w87","cls":"dom","s":2,"iv":[-4,-3,-3],"np":4,"by":["parker"],"src":"WJD","name":"2-♭7-5-3"},{"id":"w88","cls":"maj","s":7,"iv":[2,2,3],"np":4,"by":["cbrown","coltrane"],"src":"WJD","name":"5-6-7-2"},{"id":"w89","cls":"dom","s":0,"iv":[-1,-1,-1,-2,-2],"np":4,"by":["dorham","konitz","parker"],"src":"WJD","name":"1-7-♭7-6-5-4"},{"id":"w90","cls":"min","s":3,"iv":[2,2,-4],"np":4,"by":["baker","cannon","cbrown"],"src":"WJD","name":"♭3-4-5-♭3"},{"id":"w91","cls":"dom","s":0,"iv":[-1,-1,-2],"np":4,"by":["rollins"],"src":"WJD","name":"1-7-♭7-♭6"},{"id":"w92","cls":"dom","s":7,"iv":[-3,-4,-1],"np":4,"by":["getz","jj","konitz"],"src":"WJD","name":"5-3-1-7"},{"id":"w93","cls":"dom","s":4,"iv":[1,2,2,1,2],"np":4,"by":["getz","henderson"],"src":"WJD","name":"3-4-5-6-♭7-1"},{"id":"w94","cls":"min","s":10,"iv":[-3,-4,-3],"np":4,"by":[],"src":"WJD","name":"♭7-5-♭3-1"},{"id":"w95","cls":"domalt","s":10,"iv":[-2,-1,-2],"np":4,"by":["jj","rollins"],"src":"WJD","name":"♭7-♭6-5-4"},{"id":"w96","cls":"maj","s":2,"iv":[-2,-3,-2],"np":4,"by":["konitz","lyoung"],"src":"WJD","name":"2-1-6-5"},{"id":"w97","cls":"dom","s":6,"iv":[-2,-1,-2],"np":4,"by":["getz","henderson","konitz"],"src":"WJD","name":"♭5-3-♭3-♭2"},{"id":"w98","cls":"min","s":10,"iv":[-1,-2,-2],"np":4,"by":["konitz","miles","parker"],"src":"WJD","name":"♭7-6-5-4"},{"id":"w99","cls":"dom","s":10,"iv":[-2,-2,-2],"np":4,"by":[],"src":"WJD","name":"♭7-♭6-♭5-3"},{"id":"w100","cls":"maj","s":0,"iv":[-3,-4,-3],"np":4,"by":["konitz"],"src":"WJD","name":"1-6-4-2"},{"id":"w101","cls":"dom","s":4,"iv":[-2,-1,-2],"np":4,"by":["coltrane","dorham","rollins"],"src":"WJD","name":"3-2-♭2-7"},{"id":"w102","cls":"min","s":3,"iv":[-1,-2,-2],"np":4,"by":["konitz"],"src":"WJD","name":"♭3-2-1-♭7"},{"id":"w103","cls":"dom","s":10,"iv":[2,2,-4],"np":4,"by":["henderson"],"src":"WJD","name":"♭7-1-2-♭7"},{"id":"w104","cls":"dom","s":10,"iv":[2,2,3],"np":4,"by":["coltrane","miles"],"src":"WJD","name":"♭7-1-2-4"},{"id":"w105","cls":"domalt","s":10,"iv":[3,-1,-2],"np":4,"by":["rollins"],"src":"WJD","name":"♭7-♭2-1-♭7"},{"id":"w106","cls":"dom","s":9,"iv":[-2,-3,1],"np":4,"by":["dorham"],"src":"WJD","name":"6-5-3-4"},{"id":"w107","cls":"maj","s":2,"iv":[-2,2,-2],"np":4,"by":["miles"],"src":"WJD","name":"2-1-2-1"},{"id":"w108","cls":"min","s":5,"iv":[-1,-1,4],"np":4,"by":["coltrane"],"src":"WJD","name":"4-3-♭3-5"},{"id":"w109","cls":"maj","s":9,"iv":[-2,-3,-4],"np":4,"by":["coltrane"],"src":"WJD","name":"6-5-3-1"},{"id":"w110","cls":"dom","s":9,"iv":[3,-2,-3],"np":4,"by":["getz"],"src":"WJD","name":"6-1-♭7-5"},{"id":"w111","cls":"maj","s":0,"iv":[-3,-2,-3],"np":4,"by":[],"src":"WJD","name":"1-6-5-3"},{"id":"w112","cls":"min","s":7,"iv":[3,-1,-2],"np":4,"by":["rollins"],"src":"WJD","name":"5-♭7-6-5"},{"id":"w113","cls":"dom","s":10,"iv":[1,1,-2],"np":4,"by":["cbrown","konitz"],"src":"WJD","name":"♭7-7-1-♭7"},{"id":"w114","cls":"min","s":0,"iv":[2,1,2,2,3],"np":4,"by":["dorham","rollins"],"src":"WJD","name":"1-2-♭3-4-5-♭7"},{"id":"w115","cls":"dom","s":7,"iv":[2,2,1],"np":4,"by":["coltrane","jj"],"src":"WJD","name":"5-6-7-1"},{"id":"w116","cls":"dom","s":9,"iv":[-3,1,2],"np":4,"by":[],"src":"WJD","name":"6-♭5-5-6"},{"id":"w117","cls":"dom","s":0,"iv":[1,-1,-2],"np":4,"by":["cbrown","getz","rollins"],"src":"WJD","name":"1-♭2-1-♭7"},{"id":"w118","cls":"maj","s":2,"iv":[-1,-1,-1],"np":4,"by":["konitz","parker"],"src":"WJD","name":"2-♭2-1-7"},{"id":"w119","cls":"min","s":3,"iv":[-1,-1,4],"np":4,"by":["baker","coltrane"],"src":"WJD","name":"♭3-2-♭2-4"},{"id":"w120","cls":"dom","s":9,"iv":[-2,-1,3],"np":4,"by":["getz","miles"],"src":"WJD","name":"6-5-♭5-6"},{"id":"w121","cls":"dom","s":2,"iv":[-2,-2,-3],"np":4,"by":["henderson"],"src":"WJD","name":"2-1-♭7-5"},{"id":"w122","cls":"maj","s":9,"iv":[-2,2,-2],"np":4,"by":["konitz"],"src":"WJD","name":"6-5-6-5"},{"id":"w123","cls":"dom","s":6,"iv":[-1,-1,-1],"np":4,"by":[],"src":"WJD","name":"♭5-4-3-♭3"},{"id":"w124","cls":"dom","s":3,"iv":[-1,-2,-2],"np":4,"by":["dorham","miles"],"src":"WJD","name":"♭3-2-1-♭7"},{"id":"w125","cls":"dom","s":7,"iv":[2,1,2,2,-4],"np":4,"by":["getz","henderson"],"src":"WJD","name":"5-6-♭7-1-2-♭7"},{"id":"w126","cls":"dom","s":5,"iv":[2,1,2],"np":4,"by":["cbrown","henderson"],"src":"WJD","name":"4-5-♭6-♭7"},{"id":"w127","cls":"dom","s":7,"iv":[-1,-2,-2],"np":4,"by":["cbrown","jj"],"src":"WJD","name":"5-♭5-3-2"},{"id":"w128","cls":"maj","s":11,"iv":[-1,-1,-1,-1,-2],"np":4,"by":["cbrown","dorham","henderson"],"src":"WJD","name":"7-♭7-6-♭6-5-4"},{"id":"w129","cls":"maj","s":11,"iv":[1,2,-3],"np":4,"by":["cbrown","miles"],"src":"WJD","name":"7-1-2-7"},{"id":"w130","cls":"domalt","s":5,"iv":[2,1,2],"np":4,"by":["lyoung"],"src":"WJD","name":"4-5-♭6-♭7"},{"id":"w131","cls":"min","s":3,"iv":[2,-3,1],"np":4,"by":["getz"],"src":"WJD","name":"♭3-4-2-♭3"},{"id":"w132","cls":"dom","s":5,"iv":[2,1,1],"np":4,"by":[],"src":"WJD","name":"4-5-♭6-6"},{"id":"w133","cls":"dom","s":10,"iv":[2,-3,1],"np":4,"by":["getz","jj"],"src":"WJD","name":"♭7-1-6-♭7"},{"id":"wp0","cls":"min","to":"dom","tr":5,"s":9,"iv":[-2,-2,-1,-1],"np":7,"by":["cannon","cbrown","coltrane","dorham","miles"],"src":"WJD","name":"6-5-4-3 → ♭7(다음 코드)"},{"id":"wp1","cls":"domalt","to":"min","tr":5,"s":7,"iv":[-2,-1,3,-2],"np":5,"by":["baker","cbrown","coltrane","parker"],"src":"WJD","name":"5-4-3-5 → 1(다음 코드)"},{"id":"wp2","cls":"dom","to":"maj","tr":5,"s":0,"iv":[-2,-1,-2,-2],"np":5,"by":["coltrane","konitz","parker"],"src":"WJD","name":"1-♭7-6-5 → 1(다음 코드)"},{"id":"wp3","cls":"min","to":"dom","tr":5,"s":5,"iv":[-1,-1,-1,-2],"np":5,"by":["coltrane","dorham","konitz","parker"],"src":"WJD","name":"4-3-♭3-2 → 5(다음 코드)"},{"id":"wp4","cls":"min","to":"dom","tr":5,"s":2,"iv":[-3,1,2,1],"np":4,"by":[],"src":"WJD","name":"2-7-1-2 → ♭7(다음 코드)"},{"id":"wp5","cls":"dom","to":"maj","tr":5,"s":0,"iv":[-2,-3,1,1],"np":4,"by":["konitz"],"src":"WJD","name":"1-♭7-5-♭6 → 3(다음 코드)"},{"id":"wp6","cls":"min","to":"dom","tr":5,"s":3,"iv":[2,2,3,4],"np":4,"by":["dgordon"],"src":"WJD","name":"♭3-4-5-♭7 → 6(다음 코드)"}]};
+STYLE_DATA.cells=STYLE_DATA.cells.concat(CURATED_CELLS.map((c,i)=>Object.assign({id:"c"+i,src:"교본"},c)));
+
+</script>
+
+<script>
+/* ═══════════ UI · 재생 · 저장 ═══════════ */
+'use strict';
+const $=(s)=>document.querySelector(s);
+const cur={selProg:'p251',selKey:0,selDiff:1,selInst:'wind',selTrans:0,useLicks:true,useGroups:true,style:'all',tone:'flugel',solo:null,abc:'',audio:null,saved:[]};
+
+function buildSeg(el,items,onPick){
+  items.forEach((it,i)=>{
+    const b=document.createElement('button');
+    b.textContent=it.label;
+    b.onclick=()=>{[...el.children].forEach(c=>c.classList.remove('on'));b.classList.add('on');onPick(i)};
+    if(i===it.init)b.classList.add('on');
+    el.appendChild(b);
+  });
+}
+buildSeg($('#segProg'),Object.entries(PROGS).map(([k,p],i)=>({label:p.name,init:i===0})),i=>{cur.selProg=Object.keys(PROGS)[i];applyKeyLock();regen()});
+buildSeg($('#segKey'),KEY_ROOTS.map((k,i)=>({label:k[0],init:i===0})),i=>{cur.selKey=i;regen()});
+/* 관악기만 노출 (기타·건반은 보류 — 요청) */
+const UI_INST=INSTRUMENTS.filter(x=>x.id!=='free');
+buildSeg($('#segInst'),UI_INST.map((d,i)=>({label:d.name,init:i===1})),i=>{cur.selInst=UI_INST[i].id;$('#instDesc').textContent=UI_INST[i].desc;regen()});
+$('#instDesc').textContent=UI_INST[1].desc;
+cur.selInst=UI_INST[1].id;
+/* 기보 선택: 콘서트 음정 / B♭ 악기(테너 색소폰 등) 기보 */
+buildSeg($('#segNot'),[{label:'콘서트(C) 기보',init:true},{label:'B♭ 악기용 기보'}],i=>{
+  cur.selTrans=i===1?2:0;
+  if(cur.solo){cur.abc=toAbc(cur.solo,+$('#bpm').value,cur.selTrans||0);renderSheet()}
+});
+buildSeg($('#segLick'),[{label:'사용',init:true},{label:'끔'}],i=>{cur.useLicks=i===0;regen()});
+buildSeg($('#segGroup'),[{label:'켬',init:true},{label:'끔'}],i=>{cur.useGroups=i===0;regen()});
+const STYLE_KEYS=Object.keys(STYLE_DATA.profiles);
+const STYLE_NOTE={all:'WJD 전체 347개 스윙 솔로의 평균 — 가장 무난한 출발점',parker:'비밥 · 코드톤 강박 비율 최고(67%), 짧고 촘촘한 프레이즈, 3연음 잦음',cbrown:'하드밥 · 8분음표 라인이 가장 길게 이어지는 유형(79%)',rollins:'하드밥 · 짧은 프레이즈와 넉넉한 쉼(모티프를 던지고 비움)',dgordon:'하드밥 · 뒤로 눕는 스윙(레이백), 짧은 프레이즈',baker:'쿨 · 크로매틱 최소(14%), 3연음 거의 없음, 긴 호흡의 노래하는 라인',getz:'쿨 · 매끄러운 8분 라인, 긴 호흡',miles:'여백 · 쉼이 가장 긴 유형(중앙값 3.2박), 크로매틱·텐션 많음',lyoung:'스윙 · 긴 프레이즈, 3연음 적음, 여유로운 레이백'};
+buildSeg($('#segStyle'),STYLE_KEYS.map((k,i)=>({label:STYLE_DATA.profiles[k].label.replace(' 계열',''),init:i===0})),i=>{cur.style=STYLE_KEYS[i];updStyleDesc();regen()});
+function updStyleDesc(){const p=STYLE_DATA.profiles[cur.style];$('#styleDesc').textContent=(STYLE_NOTE[cur.style]||'')+' · 근거: 솔로 '+p.solos+'개 · 음 '+p.n.toLocaleString()+'개';}
+updStyleDesc();
+/* 멜로디 음색(v0.8) — 재생에만 영향, 악보는 그대로 */
+buildSeg($('#segTone'),[{label:'플뤼겔혼',init:true},{label:'클라리넷'},{label:'기본 신스'}],i=>{cur.tone=['flugel','clarinet','default'][i]});
+/* 기보 선택은 렌더만 다시 — 같은 솔로를 유지한 채 표기만 전환 */
+/* 곡 선택 시 그 곡의 조로 고정 (리얼북 차트 기준) */
+function applyKeyLock(){
+  /* v0.11 — 조 고정을 풀었다: 곡 선택 시 원곡 조를 기본값으로 자동 설정할 뿐, 언제든 변환 가능 */
+  const p=PROGS[cur.selProg], kseg=$('#segKey'),hint=$('#keyHint');
+  kseg.style.opacity=1;kseg.style.pointerEvents='auto';
+  if(p.fixedKey!==undefined){
+    const idx=KEY_ROOTS.findIndex(k=>k[1]===p.fixedKey);
+    if(idx>=0){cur.selKey=idx;[...kseg.children].forEach((c,j)=>c.classList.toggle('on',j===idx));}
+    hint.textContent='원곡은 '+KEY_ROOTS[idx][0]+'조 — 원하는 조로 자유롭게 바꿔 연습할 수 있습니다';
+  }else hint.textContent='원하는 조에서 연습하세요 — 코드와 악보가 그 조에 맞춰 생성됩니다';
+}
+applyKeyLock();
+buildSeg($('#segDiff'),DIFFS.map((d,i)=>({label:d.name,init:i===0})),i=>{cur.selDiff=i+1;$('#diffDesc').textContent=DIFFS[i].desc;regen()});
+$('#diffDesc').textContent=DIFFS[0].desc;
+$('#bpm').addEventListener('input',e=>{$('#bpmVal').textContent=e.target.value+' BPM'});
+$('#backvol').addEventListener('input',e=>{$('#bvVal').textContent=e.target.value+' %'});
+
+function regen(){ if(cur.solo) gen(false); }
+function gen(newSeed){
+  const sig=[cur.selProg,KEY_ROOTS[cur.selKey][1],cur.selDiff,cur.selInst,cur.useLicks!==false,cur.style,cur.useGroups].join('|');
+  /* 새 시드(악보 생성)또는 첫 생성 → 새 솔로. 시드는 저장해 두었다가 설정 변경 시 같은 솔로를 재현 */
+  if(newSeed||cur.seed===undefined||cur.sig===undefined){cur.seed=Math.floor(Math.random()*1e6);cur.edits={};cur.sel=null;}
+  else if(sig!==cur.sig){cur.edits={};cur.sel=null;}   /* 음악적 조건이 바뀌면 편집도 새로 */
+  cur.sig=sig;
+  cur.soloBase=generateSolo(cur.selProg,KEY_ROOTS[cur.selKey][1],cur.selDiff,cur.seed,cur.selInst,{useLicks:cur.useLicks!==false,style:cur.style,groups:cur.useGroups});
+  cur.solo=applyEdits(JSON.parse(JSON.stringify(cur.soloBase)),cur.edits);
+  cur.abc=toAbc(cur.solo,+$('#bpm').value,cur.selTrans||0);
+  renderSheet();
+  $('#btnPlay').disabled=false;$('#btnSave').disabled=false;
+}
+$('#btnGen').onclick=()=>gen(true);
+
+function renderSheet(){
+  const p=$('#paper');
+  p.classList.remove('deal');void p.offsetWidth;p.classList.add('deal');
+  $('#paperTitle').textContent=PROGS[cur.solo.progId].name;
+  $('#paperMeta').textContent=KEY_ROOTS[cur.selKey][0]+' 조 · 난이도 '+cur.solo.diff+' · '+STYLE_DATA.profiles[cur.solo.style].label+' · '+INSTRUMENTS.find(x=>x.id===cur.selInst).name+' · '+new Date(cur.solo.ts).toLocaleTimeString('ko-KR');
+  const box=$('#staff');
+  if(typeof ABCJS!=='undefined'){
+    box.innerHTML='';
+    ABCJS.renderAbc(box,cur.abc,{responsive:'resize',
+      paddingtop:0,paddingbottom:0,paddingleft:0,paddingright:0});
+  }else{
+    box.innerHTML='<div class="fallback">[오프라인 모드 · 악보 렌더러를 불러오지 못해 음 이름 나열로 대신합니다]\n'+
+      cur.solo.bars.map(bar=>bar.notes.map(n=>n.midi===null?'쉼':n.midi).join(' ')).join('\n')+'</div>';
+  }
+  const chips=$('#chips');chips.innerHTML='';
+  cur.solo.bars.forEach((bar,i)=>{
+    const c=document.createElement('span');c.className='bar';
+    c.textContent=(i+1)+'마디 '+bar.chords.map(ch=>chordSymbol(ch.root,ch.type)).join(' ');
+    chips.appendChild(c);
+  });
+  const cnt={};cur.solo.bars.forEach(b=>b.tags.forEach(t=>cnt[t]=(cnt[t]||0)+1));
+  const tags=['형식 '+cur.solo.form.sections.join('·')+' · 프레이즈 '+cur.solo.form.phrases+'개',...Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a]).map(t=>t+(cnt[t]>1?' ×'+cnt[t]:''))];
+  const st=cur.solo.stats;
+  $('#analysisBox').style.display='block';
+  $('#tagRow').innerHTML='<div class="statrow" style="width:100%">'
+    +'<div class="stat"><div class="v">'+st.targets+'</div><div class="k">코드 전환 타깃음</div></div>'
+    +'<div class="stat"><div class="v">'+st.guideHits+'</div><div class="k">가이드톤(3·7음) 착지</div></div>'
+    +'<div class="stat"><div class="v">'+st.appr+' / '+st.enc+'</div><div class="k">반음 어프로치 / 인클로저</div></div>'
+    +'<div class="stat"><div class="v">'+st.cells+'</div><div class="k">어휘 셀</div></div></div>'
+    +tags.map(t=>'<span class="tag"><b>✦</b>'+t+'</span>').join('');
+  $('#harmBox').style.display='block';
+  $('#harmList').innerHTML=cur.solo.harm.map(h=>{const p=h.label.split(' · ');return '<div class="harm"><b>'+(h.bar+1)+'마디</b>'+p[0]+' <span>· '+p.slice(1).join(' · ')+'</span></div>'}).join('');
+  bindNoteClicks();
+}
+
+/*__PLAYBACK_START__*/
+/* ── Web Audio 재생 엔진 v0.12 ──
+   · 스윙비: WJD 실측(템포별 중앙값 120BPM 0.63 → 280BPM 0.54) + 연주자 프로필 보정
+   · 아티큘레이션: 붙임줄 음은 한 소리로, 엇박 8분 살짝 강조(비밥 악센트), 라인 속 낮은 음은 고스트,
+     프레이즈 끝음은 길게 + 비브라토, 레가토 겹침
+   · 반주: 가이드톤 기반 루트리스 보이싱(A/B형 교대, 보이스리딩), 박마다 화성을 읽는 워킹 베이스 */
+const SWING_TABLE=[[60,0.53],[100,0.60],[140,0.626],[180,0.627],[220,0.60],[260,0.577],[300,0.54]];
+function swingRatio(bpm,style){
+  let r=SWING_TABLE[0][1];
+  for(let i=0;i<SWING_TABLE.length-1;i++){const [a,ra]=SWING_TABLE[i],[b,rb]=SWING_TABLE[i+1];
+    if(bpm>=a&&bpm<=b){r=ra+(rb-ra)*(bpm-a)/(b-a);break}if(bpm>b)r=rb}
+  const off=(typeof STYLE_DATA!=='undefined'&&STYLE_DATA.profiles[style])?STYLE_DATA.profiles[style].swingOff||0:0;
+  return Math.max(0.52,Math.min(0.68,r+off));
+}
+function midiFreq(m){return 440*Math.pow(2,(m-69)/12)}
+function tickToBeat(t,sw){const beat=Math.floor(t/6),r=t%6;const fr={0:0,2:1/3,3:sw,4:2/3,1:1/6,5:5/6}[r];return beat+fr}
+function buildAudioEvents(solo,bpm,sw){
+  const spb=60/bpm,evs=[];
+  const flat=[];solo.bars.forEach((bar,bi)=>bar.notes.forEach(n=>flat.push({...n,T:bi*24+n.t})));
+  for(let i=0;i<flat.length;i++){
+    const n=flat[i];
+    if(n.midi===null)continue;
+    if(i>0&&flat[i-1].tie&&flat[i-1].midi===n.midi)continue;
+    let endT=n.T+n.d,k=i;
+    while(flat[k].tie&&flat[k+1]&&flat[k+1].midi===n.midi){k++;endT=flat[k].T+flat[k].d}
+    const st=tickToBeat(n.T,sw)*spb,en=tickToBeat(endT,sw)*spb;
+    const nx=flat[k+1];
+    const legato=nx&&nx.midi!==null&&nx.T===endT;
+    let dur=(en-st)*(legato?1.02:0.86);
+    const isOff=n.T%6===3&&!n.trip;
+    const pv=flat[i-1]&&flat[i-1].midi!==null?flat[i-1].midi:null;
+    let vel=0.82;
+    if(isOff)vel=0.95;                                    /* 엇박 8분 강조 */
+    if(n.t%24===0)vel=Math.max(vel,0.9);
+    if(pv!==null&&n.midi<pv-2&&n.d<=3&&!isOff)vel=0.62;   /* 하행 라인의 박 위 음은 살짝 고스트 */
+    if(n.phStart)vel=Math.max(vel,0.9);
+    const isEnd=!!(n.phEnd||flat[k].phEnd)||(endT-n.T)>=9;
+    evs.push({start:st,dur:Math.max(0.06,dur),midi:n.midi,vel,end:isEnd});
+  }
+  return evs;
+}
+/* 워킹 베이스 — 박마다 그 박의 코드를 읽는다. 1박 근음, 4박은 다음 근음으로 반음/5도 어프로치 */
+function bassLine(solo,seed){
+  const rng=mulberry32((seed||1)*31+7);
+  const N=m=>{while(m<40)m+=12;while(m>55)m-=12;return m};
+  const beats=[];
+  solo.bars.forEach(bar=>{for(let k=0;k<4;k++){const ch=bar.chords[(k>=2&&bar.chords.length>1)?1:0];beats.push(ch)}});
+  const out=[];let prev=N(beats[0].root+40);
+  for(let i=0;i<beats.length;i++){
+    const ch=beats[i],nx=beats[(i+1)%beats.length];
+    const iv=CHORD_TYPES[ch.type].iv,sc=CHORD_TYPES[ch.type].scale;
+    const chordStart=i===0||beats[i-1]!==ch;
+    const nextChange=nx!==ch;
+    let m;
+    if(chordStart){m=nearest([N(ch.root),N(ch.root)+12].filter(x=>x<=57),prev)}
+    else if(nextChange){
+      const tgt=nearest([N(nx.root),N(nx.root)+12,N(nx.root)-12].filter(x=>x>=38&&x<=57),prev);
+      const r=rng();
+      m=r<0.55?(prev<tgt?tgt-1:tgt+1):(r<0.8?tgt+7-12*(tgt+7>55?1:0):(prev<tgt?tgt-2:tgt+2));
+      if(Math.abs(m-prev)>9)m=prev<tgt?tgt-1:tgt+1;
+    }else{
+      const pool=[];for(let o=36;o<=57;o++){const rel=((o-ch.root)%12+12)%12;if(iv.includes(rel)||sc.includes(rel))pool.push({v:o,w:(iv.includes(rel)?2.2:1)*Math.exp(-Math.abs(o-prev)/3)*(o===prev?0.05:1)})}
+      m=pickW(rng,pool);
+    }
+    while(m>57)m-=12;while(m<36)m+=12;
+    out.push(m);prev=m;
+  }
+  const bars=[];for(let b=0;b<solo.bars.length;b++)bars.push(out.slice(b*4,b*4+4));
+  return bars;
+}
+/* 루트리스 보이싱 — 3·7 + 9·13(또는 5) / A형(3-5-7-9) · B형(7-9-3-5) 중 가까운 쪽 */
+function voicingFor(ch,prevV){
+  const t=ch.type,r=ch.root,cls=TYPE_CLS[t];
+  const sets={maj:[[4,7,11,14],[11,14,16,19]],min:[[3,7,10,14],[10,14,15,19]],dom:[[4,9,10,14],[10,14,16,21]],
+    domalt:[[4,8,10,13],[10,13,16,20]],hdim:[[3,6,10,12],[10,12,15,18]],dim:[[3,6,9,12],[9,12,15,18]]};
+  if(t==='6')sets.maj=[[4,7,9,14],[9,14,16,19]];
+  if(t==='m6')sets.min=[[3,7,9,14],[9,14,15,19]];
+  let best=null;
+  for(const form of sets[cls]||sets.maj){
+    for(let base=48;base<=62;base++){
+      if(((base-r)%12+12)%12!==0)continue;
+      const v=form.map(x=>base+x);
+      if(v[0]<52||v[3]>74)continue;
+      const cost=prevV?v.reduce((a,x,k)=>a+Math.abs(x-prevV[k]),0):Math.abs(v[0]-58);
+      if(!best||cost<best.cost)best={v,cost};
+    }
+  }
+  return best?best.v:[r+52,r+56,r+59,r+62];
+}
+function playAll(){
+  stopAll();
+  const bpm=+$('#bpm').value;
+  const sw=swingRatio(bpm,cur.style);
+  const ac=new (window.AudioContext||window.webkitAudioContext)();
+  const master=ac.createGain();master.gain.value=0.75;
+  const comp=ac.createDynamicsCompressor();
+  master.connect(comp);comp.connect(ac.destination);
+  const rb=ac.createGain();
+  rb.gain.value=Math.max(0,(+$('#backvol').value||90)/100)*2.6;
+  rb.connect(master);
+  const spb=60/bpm;
+  const t0=ac.currentTime+0.1;
+  const start=t0+4*spb;
+  cur.audio={ac,master,raf:null};
+  for(let i=0;i<4;i++)click(ac,master,t0+i*spb,i===0?1400:1000,i===0?0.5:0.3);
+  const bl=bassLine(cur.solo,cur.seed);
+  const rng=mulberry32((cur.seed||1)*13+5);
+  /* 컴핑: 찰스턴·푸시(4&→1)·2&·4박 등 싱커페이션 — 마디마다 확률적으로 고른다 */
+  const COMP=[[0,1+sw],[0+sw,2+sw],[1+sw,3],[0,2+sw],[1,3+sw],[sw,3]];
+  let prevV=null;
+  cur.solo.bars.forEach((bar,bi)=>{
+    const barStart=start+bi*4*spb;
+    const pat=COMP[Math.floor(rng()*COMP.length)];
+    pat.forEach(bt=>{
+      const beatAbs=bt%4;
+      const ch=bar.chords[(beatAbs>=2&&bar.chords.length>1)?1:0];
+      const v=voicingFor(ch,prevV);prevV=v;
+      const len=(bt%1===0?0.9:0.55)*spb;
+      pianoHit(ac,rb,barStart+tickToBeat(Math.round(beatAbs*6),sw)*spb,len,v,0.12);
+    });
+    if(bar.chords.length>1&&!pat.some(bt=>bt>=2)){const v=voicingFor(bar.chords[1],prevV);prevV=v;pianoHit(ac,rb,barStart+2*spb,0.8*spb,v,0.11)}
+    bl[bi].forEach((m,k)=>bass(ac,rb,barStart+k*spb,0.92*spb,m,k===0?1:(k===2?0.9:0.8)));
+    kick(ac,rb,barStart,0.25);
+    snare(ac,rb,barStart+1*spb,0.12);snare(ac,rb,barStart+3*spb,0.12);
+    if(rng()<0.25)snare(ac,rb,barStart+(2+sw)*spb,0.05);   /* 스네어 코멘트(약하게) */
+    [0,1,1+sw,2,3,3+sw].forEach(bt=>ridePing(ac,rb,barStart+bt*spb,bt%1?0.045:(bt%2?0.08:0.065)));
+    hat(ac,rb,barStart+1*spb,0.08);hat(ac,rb,barStart+3*spb,0.08);
+  });
+  buildAudioEvents(cur.solo,bpm,sw).forEach(e=>mel(ac,master,start+e.start,e.dur,e.midi,cur.tone||'flugel',e.vel,e.end));
+  const chips=[...$('#chips').children];
+  const totalBeats=cur.solo.bars.length*4;
+  const loop=()=>{
+    if(!cur.audio)return;
+    const el=ac.currentTime-start;
+    chips.forEach((c,i)=>c.classList.toggle('lit',el>=0&&el<totalBeats*spb&&i===Math.floor(el/(4*spb))));
+    if(el>totalBeats*spb+1.2){stopAll();$('#btnPlay').textContent='▶ 반주와 함께 재생';return}
+    cur.audio.raf=requestAnimationFrame(loop);
+  };
+  loop();
+}
+function click(ac,out,when,freq,vol){
+  const o=ac.createOscillator(),g=ac.createGain();
+  o.frequency.value=freq;o.type='square';
+  g.gain.setValueAtTime(vol,when);g.gain.exponentialRampToValueAtTime(0.001,when+0.06);
+  o.connect(g);g.connect(out);o.start(when);o.stop(when+0.08);
+}
+function pianoHit(ac,out,when,dur,midis,vol){
+  midis.forEach((m,k)=>{
+    const o=ac.createOscillator(),o2=ac.createOscillator(),g=ac.createGain(),f=ac.createBiquadFilter();
+    o.type='triangle';o.frequency.value=midiFreq(m);
+    o2.type='sine';o2.frequency.value=midiFreq(m)*2;
+    f.type='lowpass';f.frequency.value=2200;
+    const g2=ac.createGain();g2.gain.value=0.25;
+    const w=when+k*0.006;  /* 살짝 롤 */
+    g.gain.setValueAtTime(0.0001,w);
+    g.gain.exponentialRampToValueAtTime(vol,w+0.012);
+    g.gain.exponentialRampToValueAtTime(vol*0.45,w+0.18);
+    g.gain.exponentialRampToValueAtTime(0.001,w+dur);
+    o.connect(f);o2.connect(g2);g2.connect(f);f.connect(g);g.connect(out);
+    o.start(w);o.stop(w+dur+0.05);o2.start(w);o2.stop(w+dur+0.05);
+  });
+}
+function bass(ac,out,when,dur,midi,vel){
+  vel=vel||1;
+  const f=midiFreq(midi);
+  const o=ac.createOscillator(),o2=ac.createOscillator(),g=ac.createGain(),fl=ac.createBiquadFilter();
+  o.type='triangle';o.frequency.value=f;
+  o2.type='square';o2.frequency.value=f*2;
+  fl.type='lowpass';fl.frequency.setValueAtTime(1100,when);fl.frequency.exponentialRampToValueAtTime(500,when+0.15);
+  const g2=ac.createGain();g2.gain.value=0.16;
+  o2.connect(g2);g2.connect(fl);o.connect(fl);fl.connect(g);g.connect(out);
+  g.gain.setValueAtTime(0.0001,when);
+  g.gain.exponentialRampToValueAtTime(0.62*vel,when+0.01);
+  g.gain.exponentialRampToValueAtTime(0.3*vel,when+Math.min(0.14,dur*0.6));
+  g.gain.exponentialRampToValueAtTime(0.001,when+dur);
+  o.start(when);o.stop(when+dur+0.05);o2.start(when);o2.stop(when+dur+0.05);
+}
+function kick(ac,out,when,vol){
+  const o=ac.createOscillator(),g=ac.createGain();
+  o.type='sine';o.frequency.setValueAtTime(150,when);o.frequency.exponentialRampToValueAtTime(50,when+0.09);
+  g.gain.setValueAtTime(vol||0.5,when);g.gain.exponentialRampToValueAtTime(0.001,when+0.16);
+  o.connect(g);g.connect(out);o.start(when);o.stop(when+0.18);
+}
+function noiseBuf(ac,len){const b=ac.createBuffer(1,ac.sampleRate*len,ac.sampleRate),d=b.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;return b}
+function snare(ac,out,when,vol){
+  if(!ac._sn)ac._sn=noiseBuf(ac,0.2);
+  const n=ac.createBufferSource(),g=ac.createGain(),f=ac.createBiquadFilter();
+  n.buffer=ac._sn;f.type='bandpass';f.frequency.value=2100;f.Q.value=0.7;
+  g.gain.setValueAtTime(vol,when);g.gain.exponentialRampToValueAtTime(0.001,when+0.13);
+  n.connect(f);f.connect(g);g.connect(out);n.start(when);n.stop(when+0.15);
+}
+function hat(ac,out,when,vol){
+  if(!ac._ht)ac._ht=noiseBuf(ac,0.1);
+  const n=ac.createBufferSource(),g=ac.createGain(),f=ac.createBiquadFilter();
+  n.buffer=ac._ht;f.type='highpass';f.frequency.value=6500;
+  g.gain.setValueAtTime(vol,when);g.gain.exponentialRampToValueAtTime(0.001,when+0.05);
+  n.connect(f);f.connect(g);g.connect(out);n.start(when);n.stop(when+0.07);
+}
+function ridePing(ac,out,when,vol){
+  if(!ac._rd)ac._rd=noiseBuf(ac,0.5);
+  const n=ac.createBufferSource(),g=ac.createGain(),f=ac.createBiquadFilter(),f2=ac.createBiquadFilter();
+  n.buffer=ac._rd;f.type='bandpass';f.frequency.value=5200;f.Q.value=2.2;f2.type='highpass';f2.frequency.value=3000;
+  g.gain.setValueAtTime(vol||0.07,when);g.gain.exponentialRampToValueAtTime((vol||0.07)*0.3,when+0.05);g.gain.exponentialRampToValueAtTime(0.001,when+0.38);
+  n.connect(f);f.connect(f2);f2.connect(g);g.connect(out);n.start(when);n.stop(when+0.4);
+  const o=ac.createOscillator(),og=ac.createGain();o.type='sine';o.frequency.value=5800;  /* 벨 톤 */
+  og.gain.setValueAtTime((vol||0.07)*0.12,when);og.gain.exponentialRampToValueAtTime(0.0005,when+0.3);
+  o.connect(og);og.connect(out);o.start(when);o.stop(when+0.32);
+}
+function mel(ac,out,when,dur,midi,tone,vel,isEnd){
+  tone=tone||'flugel';vel=vel||0.85;
+  const g=ac.createGain(),f=ac.createBiquadFilter();
+  f.type='lowpass';
+  let oscs=[];
+  const fr=midiFreq(midi);
+  if(tone==='clarinet'){
+    const o=ac.createOscillator();o.type='square';o.frequency.value=fr;
+    f.frequency.value=1300+700*vel;oscs=[[o,0.8]];
+  }else if(tone==='flugel'){
+    const o=ac.createOscillator(),o2=ac.createOscillator(),o3=ac.createOscillator();
+    o.type='sine';o2.type='sine';o3.type='triangle';
+    o.frequency.value=fr;o2.frequency.value=fr*2;o3.frequency.value=fr;
+    f.frequency.setValueAtTime(700,when);f.frequency.linearRampToValueAtTime(900+1000*vel,when+0.05);  /* 브라스 블룸 */
+    oscs=[[o,1],[o2,0.22],[o3,0.35]];
+  }else{
+    const o=ac.createOscillator(),o2=ac.createOscillator();
+    o.type='triangle';o2.type='sine';o.frequency.value=fr;o2.frequency.value=fr*2.001;
+    f.frequency.value=2600;oscs=[[o,1],[o2,1]];
+  }
+  if(tone!=='default'&&(dur>0.4||isEnd)){
+    const lfo=ac.createOscillator(),lg=ac.createGain();
+    lfo.frequency.value=5.4;
+    const vs=when+Math.min(0.3,dur*0.45);
+    lg.gain.setValueAtTime(0,when);lg.gain.setValueAtTime(0,vs);lg.gain.linearRampToValueAtTime(fr*0.007,vs+0.25);
+    lfo.connect(lg);oscs.forEach(([o])=>lg.connect(o.frequency));
+    lfo.start(when);lfo.stop(when+dur+0.1);
+  }
+  /* 짧은 아래→제 음 스쿱(프레이즈 첫 음·긴 음에만) */
+  if(tone!=='default'&&dur>0.3)oscs.forEach(([o])=>{o.frequency.setValueAtTime(fr*0.985,when);o.frequency.exponentialRampToValueAtTime(fr,when+0.05)});
+  const peak=0.24*vel;
+  const atk=tone==='default'?0.012:(tone==='clarinet'?0.022:0.03);
+  g.gain.setValueAtTime(0.0001,when);
+  g.gain.exponentialRampToValueAtTime(peak,when+atk);
+  g.gain.exponentialRampToValueAtTime(peak*0.82,when+atk+0.06);
+  g.gain.setValueAtTime(peak*0.82,when+Math.max(atk+0.07,dur-0.06));
+  g.gain.exponentialRampToValueAtTime(0.001,when+dur+(isEnd?0.12:0.03));
+  oscs.forEach(([o,vol])=>{
+    const vg=ac.createGain();vg.gain.value=vol;
+    o.connect(vg);vg.connect(f);
+    o.start(when);o.stop(when+dur+0.2);
+  });
+  f.connect(g);g.connect(out);
+}
+function stopAll(){
+  if(cur.audio){
+    if(cur.audio.raf)cancelAnimationFrame(cur.audio.raf);
+    try{cur.audio.ac.close()}catch(e){}
+    cur.audio=null;
+    [...$('#chips').children].forEach(c=>c.classList.remove('lit'));
+  }
+}
+
+/*__PLAYBACK_END__*/
+$('#btnPlay').onclick=()=>{
+  if(cur.audio){stopAll();$('#btnPlay').textContent='▶ 반주와 함께 재생'}
+  else{playAll();$('#btnPlay').textContent='■ 정지'}
+};
+
+/* ── 저장 (인메모리) ── */
+$('#btnSave').onclick=()=>{
+  const s=cur.solo;
+  cur.saved.unshift({id:s.ts,seed:cur.seed,name:PROGS[s.progId].name+' · '+KEY_ROOTS[cur.selKey][0]+'조 · 난이도 '+s.diff+' · '+STYLE_DATA.profiles[cur.style].label+' · '+INSTRUMENTS.find(x=>x.id===cur.selInst).name,progId:s.progId,keyIdx:cur.selKey,diff:s.diff,inst:cur.selInst,licks:cur.useLicks!==false,style:cur.style,groups:cur.useGroups});
+  renderSaved();
+};
+function renderSaved(){
+  const el=$('#savedList');
+  if(!cur.saved.length){el.innerHTML='<div class="none">아직 저장한 솔로가 없습니다.</div>';return}
+  el.innerHTML='';
+  cur.saved.forEach(item=>{
+    const d=document.createElement('div');d.className='sitem';
+    d.innerHTML='<span class="nm">♡ <b>'+item.name+'</b></span>';
+    const b=document.createElement('button');b.textContent='불러오기';
+    b.onclick=()=>{
+      cur.selProg=item.progId;cur.selKey=item.keyIdx;cur.selDiff=item.diff;cur.selInst=item.inst||'free';cur.useLicks=item.licks!==false;
+      cur.style=item.style||'all';cur.useGroups=item.groups!==false;
+      cur.seed=item.seed;cur.edits={};cur.sel=null;cur.sig=[cur.selProg,KEY_ROOTS[cur.selKey][1],cur.selDiff,cur.selInst,cur.useLicks,cur.style,cur.useGroups].join('|');
+      [...$('#segStyle').children].forEach((c,i)=>c.classList.toggle('on',STYLE_KEYS[i]===cur.style));updStyleDesc();
+      [...$('#segGroup').children].forEach((c,i)=>c.classList.toggle('on',(i===0)===cur.useGroups));
+      [...$('#segInst').children].forEach((c,i)=>c.classList.toggle('on',UI_INST[i].id===cur.selInst));
+      [...$('#segLick').children].forEach((c,i)=>c.classList.toggle('on',(i===0)===cur.useLicks));
+      applyKeyLock();
+      [...$('#segProg').children].forEach((c,i)=>c.classList.toggle('on',Object.keys(PROGS)[i]===item.progId));
+      [...$('#segKey').children].forEach((c,i)=>c.classList.toggle('on',i===item.keyIdx));
+      [...$('#segDiff').children].forEach((c,i)=>c.classList.toggle('on',i===item.diff-1));
+      gen(false);
+      window.scrollTo({top:0,behavior:'smooth'});
+    };
+    d.appendChild(b);el.appendChild(d);
+  });
+}
+/* ── 음 편집(v0.5): 악보의 음표·쉼표 클릭 → 팝오버에서 개별 수정 ── */
+const NOTE_NAME=['C','D♭','D','E♭','E','F','G♭','G','A♭','A','B♭','B'];
+function noteName(m){return NOTE_NAME[((m%12)+12)%12]+(Math.floor(m/12)-1)}
+function noteSeq(){const seq=[];cur.solo.bars.forEach((bar,b)=>bar.notes.forEach((n,i)=>seq.push({b,i,n})));return seq}
+function clearSel(){(cur.bind||[]).forEach(el=>el.classList.remove('notehead-sel'))}
+function bindNoteClicks(){
+  const svg=$('#staff svg');cur.bind=[];
+  if(svg&&cur.solo){
+    const seq=noteSeq();
+    const restSel='[class*="rest"]';
+    const els=[...svg.querySelectorAll('.abcjs-notehead,'+restSel)];
+    const heads=[...svg.querySelectorAll('.abcjs-notehead:not('+restSel+')')];
+    const notesOnly=seq.filter(x=>x.n.midi!==null);
+    let pairs=null;
+    if(els.length===seq.length)pairs=els.map((el,k)=>[el,seq[k]]);        /* 음표+쉼표 전부 매칭 */
+    else if(heads.length===notesOnly.length)pairs=heads.map((el,k)=>[el,notesOnly[k]]); /* 음표만 매칭 */
+    if(pairs)pairs.forEach(([el,seqItem])=>{
+      cur.bind.push(el);el.style.cursor='pointer';
+      el.addEventListener('click',ev=>{ev.stopPropagation();cur.sel={b:seqItem.b,i:seqItem.i};clearSel();el.classList.add('notehead-sel');cur.selEl=el;showPop()});
+    });
+  }
+  if(cur.sel){  /* 재렌더 후 선택 복원 */
+    const seq=noteSeq();const k=seq.findIndex(x=>x.b===cur.sel.b&&x.i===cur.sel.i);
+    if(k>=0&&cur.bind[k]){cur.selEl=cur.bind[k];cur.selEl.classList.add('notehead-sel');showPop()}
+    else{cur.sel=null;showPop()}
+  }
+}
+function showPop(){
+  const pop=$('#editPop');
+  if(!cur.sel||!cur.selEl){pop.style.display='none';return}
+  const {b,i}=cur.sel,bar=cur.solo.bars[b],n=bar.notes[i];
+  const ch=bar.chords[(n.t>=12&&bar.chords.length>1)?1:0];
+  const isRest=n.midi===null;
+  const flat=[];cur.solo.bars.forEach(bb=>bb.notes.forEach(nn=>flat.push(nn.midi)));
+  const idx=cur.solo.bars.slice(0,b).reduce((a,bb)=>a+bb.notes.length,0)+i;
+  let warn='';
+  if(!isRest){
+    let pf=null;for(let k=idx-1;k>=0;k--)if(flat[k]!==null){pf=flat[k];break}
+    let nf=null;for(let k=idx+1;k<flat.length;k++)if(flat[k]!==null){nf=flat[k];break}
+    if(pf!==null&&Math.abs(n.midi-pf)>7)warn='⚠ 앞 음과 5도를 넘는 도약';
+    else if(nf!==null&&Math.abs(nf-n.midi)>7)warn='⚠ 뒤 음과 5도를 넘는 도약';
+  }
+  pop.innerHTML='<div class="popinfo">마디 '+(b+1)+' · '+chordSymbol(ch.root,ch.type)+' · '+(isRest?'쉼표':noteName(n.midi))+'</div>'
+    +(warn?'<div class="warn">'+warn+'</div>':'')
+    +'<div class="popbtns">'
+    +(isRest?'':'<button data-act="dn">반음↓</button><button data-act="up">반음↑</button><button data-act="ocd">옥타브↓</button><button data-act="ocu">옥타브↑</button><button data-act="rest">쉼표로</button><button data-act="reset">원래대로</button>')
+    +(isRest?'<button data-act="tone">음으로</button><button data-act="reset">원래대로</button>':'')
+    +'<button data-act="close">닫기</button></div>';
+  pop.style.display='block';
+  const pr=$('#paper').getBoundingClientRect(),er=cur.selEl.getBoundingClientRect();
+  let L=er.left-pr.left+er.width/2-pop.offsetWidth/2,T=er.top-pr.top-pop.offsetHeight-10;
+  if(T<2)T=er.top-pr.top+er.height+10;
+  L=Math.max(6,Math.min(L,pr.width-pop.offsetWidth-6));
+  pop.style.left=L+'px';pop.style.top=T+'px';
+  pop.querySelectorAll('button').forEach(bt=>bt.onclick=()=>popAct(bt.dataset.act));
+}
+function popAct(act){
+  const {b,i}=cur.sel,k=b+':'+i;
+  if(act==='close'){cur.sel=null;clearSel();showPop();return}
+  if(act==='reset')delete cur.edits[k];
+  else if(act==='rest')cur.edits[k]={rest:true};
+  else if(act==='tone'){
+    const bar=cur.soloBase.bars[b],n=bar.notes[i];
+    const ch=bar.chords[(n.t>=12&&bar.chords.length>1)?1:0];
+    const RG={brass:[59,82],wind:[59,82],free:[48,88]}[cur.selInst]||[48,88];
+    const ct=chordToneMidis(ch.root,ch.type,RG[0],RG[1]);
+    let ref=null;cur.soloBase.bars.forEach(bb=>bb.notes.forEach(nn=>{if(nn.midi!==null)ref=nn.midi}));
+    cur.edits[k]={midi:ct.length?nearest(ct,ref===null?(RG[0]+RG[1])/2:ref):64};
+  }else{
+    const n=cur.solo.bars[b].notes[i];if(n.midi===null)return;
+    const d=act==='up'?1:act==='dn'?-1:act==='ocu'?12:-12;
+    const m=Math.max(36,Math.min(96,n.midi+d));
+    if(m===cur.soloBase.bars[b].notes[i].midi)delete cur.edits[k];else cur.edits[k]={midi:m};
+  }
+  cur.solo=applyEdits(JSON.parse(JSON.stringify(cur.soloBase)),cur.edits);
+  cur.abc=toAbc(cur.solo,+$('#bpm').value,cur.selTrans||0);
+  renderSheet();
+}
+/* 첫 화면에서 바로 예시 악보가 보이도록 */
+gen();
+</script>
+
+</body>
+</html>

@@ -111,3 +111,11 @@ git add -A && git commit -m "변경 요약" && git push
 
 GitHub Pages 데모: 저장소 Settings → Pages → Branch `main` / root 선택 후 저장. 몇 분 후 `https://<아이디>.github.io/jazz-solo-generator/`에서 앱이 바로 실행된다.
 GitHub CLI를 쓰면 저장소 생성도 터미널에서: `gh auth login` → `gh repo create jazz-solo-generator --public --source=. --push`.
+
+## v0.13
+
+- 리얼북 스탠다드 코드 진행 99곡 + 연습용 3곡 = 총 102곡 수록 (멜로디·가사 미포함)
+- 반음 단위 조 변환 스테퍼 (-11 ~ +11, 콘서트 기준 표기 — 기보용 B♭ 조와 별개)
+- 3/4 · 5/4 박자 지원 (밀티얼 월츠, Take Five 등)
+- 간소화 UI: 곡 선택 박스 · 아티스트 스타일 박스 · 실시간 검색
+- ▶ 재생 버튼 토글 바인딩 (정지 동작 포함) 버그 수정

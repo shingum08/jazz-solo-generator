@@ -238,4 +238,9 @@ function popAct(act){
   cur.abc=toAbc(cur.solo,+$('#bpm').value,cur.selTrans||0);
   renderSheet();
 }
+
+$('#btnPlay').onclick=()=>{
+  if($('#btnPlay').textContent.indexOf('정지')>=0){stopAll();$('#btnPlay').textContent='▶ 재생'}
+  else if(typeof playAll==='function'){playAll();$('#btnPlay').textContent='■ 정지'}
+};
 gen();

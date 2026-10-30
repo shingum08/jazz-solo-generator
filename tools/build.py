@@ -10,9 +10,10 @@ here=os.path.dirname(os.path.abspath(__file__)); root=os.path.dirname(here)
 tpl=open(os.path.join(root,'app','template.html'),encoding='utf-8').read()
 eng=open(os.path.join(root,'engine','engine_core.js'),encoding='utf-8').read()
 data=open(os.path.join(root,'engine','style_data.js'),encoding='utf-8').read()
+songs=open(os.path.join(root,'engine','songs_part1.js'),encoding='utf-8').read()+open(os.path.join(root,'engine','songs_part2.js'),encoding='utf-8').read()
 pb=open(os.path.join(root,'engine','playback.js'),encoding='utf-8').read()
 out=re.sub(r'<script id="engine">[\s\S]*?</script>',
-           lambda m:'<script id="engine">\n'+eng+'\n'+data+'\n</script>',tpl,count=1)
+           lambda m:'<script id="engine">\n'+eng+'\n'+data+'\n'+songs+'\n</script>',tpl,count=1)
 start=out.index('/*__PLAYBACK_START__*/'); end=out.index('/*__PLAYBACK_END__*/')+len('/*__PLAYBACK_END__*/')
 out=out[:start]+pb+out[end:]
 open(os.path.join(root,'index.html'),'w',encoding='utf-8').write(out)

@@ -15,7 +15,8 @@ function midiFreq(m){return 440*Math.pow(2,(m-69)/12)}
 function tickToBeat(t,sw){const beat=Math.floor(t/6),r=t%6;const fr={0:0,2:1/3,3:sw,4:2/3,1:1/6,5:5/6}[r];return beat+fr}
 function buildAudioEvents(solo,bpm,sw){
   const spb=60/bpm,evs=[];
-  const flat=[];solo.bars.forEach((bar,bi)=>bar.notes.forEach(n=>flat.push({...n,T:bi*24+n.t})));
+  const TPB=(solo.bpb||4)*6;
+  const flat=[];solo.bars.forEach((bar,bi)=>bar.notes.forEach(n=>flat.push({...n,T:bi*TPB+n.t})));
   for(let i=0;i<flat.length;i++){
     const n=flat[i];
     if(n.midi===null)continue;
@@ -40,10 +41,11 @@ function buildAudioEvents(solo,bpm,sw){
 }
 /* 워킹 베이스 — 박마다 그 박의 코드를 읽는다. 1박 근음, 4박은 다음 근음으로 반음/5도 어프로치 */
 function bassLine(solo,seed){
+  const BPB=solo.bpb||4;
   const rng=mulberry32((seed||1)*31+7);
   const N=m=>{while(m<40)m+=12;while(m>55)m-=12;return m};
   const beats=[];
-  solo.bars.forEach(bar=>{for(let k=0;k<4;k++){const ch=bar.chords[(k>=2&&bar.chords.length>1)?1:0];beats.push(ch)}});
+  solo.bars.forEach(bar=>{for(let k=0;k<BPB;k++){const ch=bar.chords[(k>=Math.ceil(BPB/2)&&bar.chords.length>1)?1:0];beats.push(ch)}});
   const out=[];let prev=N(beats[0].root+40);
   for(let i=0;i<beats.length;i++){
     const ch=beats[i],nx=beats[(i+1)%beats.length];
@@ -64,7 +66,7 @@ function bassLine(solo,seed){
     while(m>57)m-=12;while(m<36)m+=12;
     out.push(m);prev=m;
   }
-  const bars=[];for(let b=0;b<solo.bars.length;b++)bars.push(out.slice(b*4,b*4+4));
+  const bars=[];for(let b=0;b<solo.bars.length;b++)bars.push(out.slice(b*BPB,b*BPB+BPB));
   return bars;
 }
 /* 루트리스 보이싱 — 3·7 + 9·13(또는 5) / A형(3-5-7-9) · B형(7-9-3-5) 중 가까운 쪽 */
@@ -89,6 +91,7 @@ function voicingFor(ch,prevV){
 function playAll(){
   stopAll();
   const bpm=+$('#bpm').value;
+  const bpb=cur.solo.bpb||4;
   const sw=swingRatio(bpm,cur.style);
   const ac=new (window.AudioContext||window.webkitAudioContext)();
   const master=ac.createGain();master.gain.value=0.75;
@@ -105,7 +108,7 @@ function playAll(){
   const bl=bassLine(cur.solo,cur.seed);
   const rng=mulberry32((cur.seed||1)*13+5);
   /* 컴핑: 찰스턴·푸시(4&→1)·2&·4박 등 싱커페이션 — 마디마다 확률적으로 고른다 */
-  const COMP=[[0,1+sw],[0+sw,2+sw],[1+sw,3],[0,2+sw],[1,3+sw],[sw,3]];
+  const COMP=bpb===3?[[0,1+sw],[0+sw,2],[1,2+sw],[0,1]]:(bpb===5?[[0,2+sw],[1+sw,3],[0,3+sw],[2,4],[1,4]]:[[0,1+sw],[0+sw,2+sw],[1+sw,3],[0,2+sw],[1,3+sw],[sw,3]]);
   let prevV=null;
   cur.solo.bars.forEach((bar,bi)=>{
     const barStart=start+bi*4*spb;
@@ -117,21 +120,28 @@ function playAll(){
       const len=(bt%1===0?0.9:0.55)*spb;
       pianoHit(ac,rb,barStart+tickToBeat(Math.round(beatAbs*6),sw)*spb,len,v,0.12);
     });
-    if(bar.chords.length>1&&!pat.some(bt=>bt>=2)){const v=voicingFor(bar.chords[1],prevV);prevV=v;pianoHit(ac,rb,barStart+2*spb,0.8*spb,v,0.11)}
-    bl[bi].forEach((m,k)=>bass(ac,rb,barStart+k*spb,0.92*spb,m,k===0?1:(k===2?0.9:0.8)));
-    kick(ac,rb,barStart,0.25);
-    snare(ac,rb,barStart+1*spb,0.12);snare(ac,rb,barStart+3*spb,0.12);
-    if(rng()<0.25)snare(ac,rb,barStart+(2+sw)*spb,0.05);   /* 스네어 코멘트(약하게) */
-    [0,1,1+sw,2,3,3+sw].forEach(bt=>ridePing(ac,rb,barStart+bt*spb,bt%1?0.045:(bt%2?0.08:0.065)));
-    hat(ac,rb,barStart+1*spb,0.08);hat(ac,rb,barStart+3*spb,0.08);
+    if(bar.chords.length>1&&!pat.some(bt=>bt>=bpb/2)){const v=voicingFor(bar.chords[1],prevV);prevV=v;pianoHit(ac,rb,barStart+tickToBeat(Math.ceil(bpb/2)*6,sw)*spb,0.8*spb,v,0.11)}
+    bl[bi].forEach((m,k)=>bass(ac,rb,barStart+k*spb,0.92*spb,m,k===0?1:(k%2?0.8:0.9)));
+    if(bpb===4){
+      kick(ac,rb,barStart,0.25);
+      snare(ac,rb,barStart+1*spb,0.12);snare(ac,rb,barStart+3*spb,0.12);
+      if(rng()<0.25)snare(ac,rb,barStart+(2+sw)*spb,0.05);
+      [0,1,1+sw,2,3,3+sw].forEach(bt=>ridePing(ac,rb,barStart+bt*spb,bt%1?0.045:(bt%2?0.08:0.065)));
+      hat(ac,rb,barStart+1*spb,0.08);hat(ac,rb,barStart+3*spb,0.08);
+    }else{  /* 왈츠·5/4 — 1박 킥, 나머지 박 가벼운 스네어, 박마다 라이드 */
+      kick(ac,rb,barStart,0.25);
+      for(let k=1;k<bpb;k++)snare(ac,rb,barStart+k*spb,0.10);
+      for(let k=0;k<bpb;k++){ridePing(ac,rb,barStart+k*spb,k%2?0.05:0.07);if(bpb===5||k%2===0)ridePing(ac,rb,barStart+(k+sw)*spb,0.04)}
+      for(let k=1;k<bpb;k++)hat(ac,rb,barStart+k*spb,0.07);
+    }
   });
   buildAudioEvents(cur.solo,bpm,sw).forEach(e=>mel(ac,master,start+e.start,e.dur,e.midi,cur.tone||'flugel',e.vel,e.end));
   const chips=[...$('#chips').children];
-  const totalBeats=cur.solo.bars.length*4;
+  const totalBeats=cur.solo.bars.length*bpb;
   const loop=()=>{
     if(!cur.audio)return;
     const el=ac.currentTime-start;
-    chips.forEach((c,i)=>c.classList.toggle('lit',el>=0&&el<totalBeats*spb&&i===Math.floor(el/(4*spb))));
+    chips.forEach((c,i)=>c.classList.toggle('lit',el>=0&&el<totalBeats*spb&&i===Math.floor(el/(bpb*spb))));
     if(el>totalBeats*spb+1.2){stopAll();$('#btnPlay').textContent='▶ 반주와 함께 재생';return}
     cur.audio.raf=requestAnimationFrame(loop);
   };

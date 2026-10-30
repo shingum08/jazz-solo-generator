@@ -21,9 +21,10 @@ const CHORD_TYPES = {
   'm6':   {iv:[0,3,7,9],    scale:[0,2,3,5,7,9,11],   sname:'멜로딕 마이너'},
   '9':    {iv:[0,4,7,10],   scale:[0,2,4,5,7,9,10],   sname:'믹솔리디안'},
   '7b9':  {iv:[0,4,7,10],   scale:[0,1,4,5,7,8,10],   sname:'하모닉 마이너 5모드(♭9·♭13)'},
-  '7#9':  {iv:[0,4,7,10],   scale:[0,1,3,4,6,8,10],   sname:'얼터드(♭9·♯9·♭13)'}
+  '7#9':  {iv:[0,4,7,10],   scale:[0,1,3,4,6,8,10],   sname:'얼터드(♭9·♯9·♭13)'},
+  'm9':   {iv:[0,3,7,10,14],scale:[0,2,3,5,7,9,10],   sname:'도리안'}
 };
-const TYPE_CLS={'maj7':'maj','6':'maj','m7':'min','m6':'min','7':'dom','9':'dom','7b9':'domalt','7#9':'domalt','m7b5':'hdim','dim7':'dim'};
+const TYPE_CLS={'maj7':'maj','6':'maj','m7':'min','m9':'min','m6':'min','7':'dom','9':'dom','7b9':'domalt','7#9':'domalt','m7b5':'hdim','dim7':'dim'};
 
 /* 진행: o = 조의 으뜸음에서 반음 거리, t = 코드 종류. 한 마디에 코드 1~2개. (v0.11과 동일) */
 const PROGS = {
@@ -99,7 +100,7 @@ function pickW(rng,cands){
   return cands[cands.length-1].v;
 }
 function nearest(arr,x){return arr.reduce((a,c)=>Math.abs(c-x)<Math.abs(a-x)?c:a,arr[0])}
-function barChords(prog,keyPc){return prog.bars.map(bar=>bar.map(c=>({root:((keyPc+c.o)%12+12)%12,type:c.t})))}
+function barChords(prog,keyPc){return prog.bars.map(bar=>bar.map(c=>'o' in c?{root:((keyPc+c.o)%12+12)%12,type:c.t}:{root:((c.root%12)+12)%12,type:c.type}))}
 const mod12=x=>((x%12)+12)%12;
 
 function chordToneMidis(rootPc,type,lo,hi){
@@ -113,15 +114,15 @@ function chordToneMidis(rootPc,type,lo,hi){
 /* ── ① 화성 분석 ───────────────────────────────────────────────
    마디 → 코드 구간(segment). 각 구간에 기능·스케일·코드톤·가이드톤·텐션을 배정한다. */
 const CHORD_NAME=['C','D♭','D','E♭','E','F','G♭','G','A♭','A','B♭','B'];
-const SUF={maj7:'maj7',m7:'m7','7':'7',m7b5:'m7♭5',dim7:'dim7','6':'6',m6:'m6','9':'9','7b9':'7♭9','7#9':'7♯9'};
+const SUF={maj7:'maj7',m7:'m7',m9:'m9','7':'7',m7b5:'m7♭5',dim7:'dim7','6':'6',m6:'m6','9':'9','7b9':'7♭9','7#9':'7♯9'};
 function chordSymbol(rootPc,type){return CHORD_NAME[mod12(rootPc)]+SUF[type]}
-function analyzeHarmony(bars,keyPc){
+function analyzeHarmony(bars,keyPc,bpb){
+  bpb=bpb||4;const TPB=bpb*6,splt=bpb===5?18:12;
   const segs=[];
-  bars.forEach((bar,b)=>bar.forEach((ch,k)=>{
-    const t0=b*24+(bar.length===1?0:k*12);
-    segs.push({bar:b,t0,dur:bar.length===1?24:12,root:ch.root,type:ch.type});
-  }));
-  /* 같은 코드가 이어지면 하나로 합친다(긴 코드 → 내부 타깃 계획에 사용) */
+  bars.forEach((bar,b)=>{const off=b*TPB;
+    if(bar.length===1)segs.push({bar:b,t0:off,root:bar[0].root,type:bar[0].type});
+    else{segs.push({bar:b,t0:off,root:bar[0].root,type:bar[0].type});segs.push({bar:b,t0:off+splt,root:bar[1].root,type:bar[1].type});}
+  });
   const merged=[];
   for(const s of segs){
     const L=merged[merged.length-1];
@@ -190,13 +191,14 @@ function generateSolo(progId,keyPc,diff,seed,inst,opts){
   const RG={brass:[59,82],wind:[59,82],free:[52,86]}[inst];
   const LO=RG[0],HI=RG[1];
   const rng=mulberry32(seed||Date.now());
-  const prog=PROGS[progId];
+  const prog=(typeof SONGDB!=='undefined'&&SONGDB[progId])?SONGDB[progId]:PROGS[progId];
   const bars=barChords(prog,keyPc);
-  const NB=bars.length,TOT=NB*24;
+  const BPB=prog.bpb||4,TPB=BPB*6;
+  const NB=bars.length,TOT=NB*TPB;
   const form=prog.form||{phrase:8,sections:'A'};
   const P=form.phrase,sec=form.sections,nPh=Math.ceil(NB/P);
   const roles=[];{const seen={};for(let p=0;p<nPh;p++){const L=sec[p]||'A';roles.push(L==='B'?'contrast':(L==='C'?'resolution':(seen[L]?'answer':'statement')));seen[L]=true}}
-  const segs=analyzeHarmony(bars,keyPc);
+  const segs=analyzeHarmony(bars,keyPc,BPB);
   const segAt=t=>{t=Math.min(t,TOT-1);for(let i=segs.length-1;i>=0;i--)if(segs[i].t0<=t)return i;return 0};
   const tagsAt=[...Array(NB)].map(()=>[]);
   const tag=(b,s)=>{if(b>=0&&b<NB&&!tagsAt[b].includes(s))tagsAt[b].push(s)};
@@ -237,13 +239,13 @@ function generateSolo(progId,keyPc,diff,seed,inst,opts){
   const lenScale=[0,0.75,0.9,1][diff];
   const phrases=[];
   let beat=rng()<0.6?0:(diff===1?2:1);
-  const totalBeats=NB*4;
+  const totalBeats=NB*BPB;
   while(beat<totalBeats-1){
     let L=Math.round(sampleQuart(rng,phLenQ.map(x=>x*lenScale),diff===1?3:3,Math.min(capBeats,diff===1?7:capBeats)));
     if(diff===1){beat=Math.ceil(beat/2)*2;}
     let end=beat+L; /* 마지막 음이 시작되는 박(포함) */
     /* 형식 경계(8마디·블루스 4마디)에 가까우면 그 직전에 종지하도록 맞춘다 */
-    const secBeats=P*4;
+    const secBeats=P*BPB;
     const nextB=Math.ceil((beat+1)/secBeats)*secBeats;
     if(nextB<totalBeats&&end>=nextB-3&&end<=nextB+3){end=nextB-2+(rng()<0.4?1:0);if(end-beat<2)end=beat+2}
     if(end>totalBeats-1)end=totalBeats-1;
@@ -445,7 +447,7 @@ function generateSolo(progId,keyPc,diff,seed,inst,opts){
     if(!best)return false;
     best.ms.forEach((m,k)=>forced.set(i+k,{m,kind:k===4?'target':'cell'}));
     const nm=(c.src==='WJD'?'실측 셀: ':'교본 어휘: ')+c.name+(c.src==='WJD'?' ('+c.np+'명 공통)':'');
-    tag(Math.floor(e.t/24),nm);lickUse[c.id||c.name]=(lickUse[c.id||c.name]||0)+1;stats.cells++;
+    tag(Math.floor(e.t/TPB),nm);lickUse[c.id||c.name]=(lickUse[c.id||c.name]||0)+1;stats.cells++;
     return true;
   }
   /* 다음 코드 다운비트 타깃 + 어프로치 역산 */
@@ -492,9 +494,9 @@ function generateSolo(progId,keyPc,diff,seed,inst,opts){
     }
     if(!okNote(T,events[j].t,seq[seq.length-1]))return;
     seq.forEach((m,k)=>forced.set(startIdx+k,{m,kind:k===seq.length-1&&seq.length===2?'enc2':(seq.length===2?'enc1':'appr')}));
-    if(seq.length===2){stats.enc++;tag(Math.floor(events[j].t/24),'인클로저')}
-    else if(Math.abs(seq[0]-T)===1){stats.appr++;tag(Math.floor(events[j].t/24),'반음 어프로치')}
-    else tag(Math.floor(events[j].t/24),'스케일 어프로치');
+    if(seq.length===2){stats.enc++;tag(Math.floor(events[j].t/TPB),'인클로저')}
+    else if(Math.abs(seq[0]-T)===1){stats.appr++;tag(Math.floor(events[j].t/TPB),'반음 어프로치')}
+    else tag(Math.floor(events[j].t/TPB),'스케일 어프로치');
   }
 
   let curPh=-1;
@@ -515,7 +517,7 @@ function generateSolo(progId,keyPc,diff,seed,inst,opts){
         return hi-(hi-lo)*Math.sin(Math.PI*x);
       };
       contour.shape=shape;
-      if(ph.s%4===0||e.first)tag(Math.floor(e.t/24),'프레이즈 시작');
+      if(ph.s%4===0||e.first)tag(Math.floor(e.t/TPB),'프레이즈 시작');
     }
     let m=null,f=forced.get(i);
     if(f&&okNote(f.m,e.t,prevM))m=f.m;
@@ -534,14 +536,14 @@ function generateSolo(progId,keyPc,diff,seed,inst,opts){
       }
     }
     if(m!==null&&diff===3&&!inScale(seg,m)&&!isCT(seg,m)&&!forced.has(i)){
-      stats.chrom++;tag(Math.floor(e.t/24),'크로매틱 통과음');
+      stats.chrom++;tag(Math.floor(e.t/TPB),'크로매틱 통과음');
       const nx=events[i+1];
       if(nx&&nx.ph===e.ph&&!forced.has(i+1)&&prevM!==null){const r=m+Math.sign(m-prevM);if(okNote(r,nx.t,m))forced.set(i+1,{m:r,kind:'pass'})}
     }
     e.midi=m;
     if(f&&f.kind==='target'&&m!==null){
-      if(isGuide(seg,m)){stats.guideHits++;tag(Math.floor(e.t/24),'가이드톤 타깃')}
-      else tag(Math.floor(e.t/24),'코드톤 착지');
+      if(isGuide(seg,m)){stats.guideHits++;tag(Math.floor(e.t/TPB),'가이드톤 타깃')}
+      else tag(Math.floor(e.t/TPB),'코드톤 착지');
     }
     if(m!==null){if(prevM!==null&&m!==prevM)lastDir=Math.sign(m-prevM);prev2M=prevM;prevM=m}
     planApproach(i);
@@ -562,36 +564,33 @@ function generateSolo(progId,keyPc,diff,seed,inst,opts){
 
   /* ── ⑦ 마디 분할 · 붙임줄 · 표기용 길이 정리 ── */
   const pieces=[];
-  const legal=(s,rem,isRest)=>{ /* 마디 안 위치 s에서 쓸 수 있는 최대 길이 */
-    const p=s%24;const lim=Math.min(rem,24-p);
-    const opts=[24,18,12,9,6,3,2,1];
+  const legal=(s,rem,isRest,TPB)=>{ /* 마디 안 위치 s에서 쓸 수 있는 최대 길이(박자 무관) */
+    const p=s%TPB,lim=Math.min(rem,TPB-p);
+    const opts=[TPB,Math.round(TPB*3/4),Math.round(TPB/2),Math.round(TPB*3/8),9,6,3,2,1]
+      .filter((d,i,a)=>Number.isInteger(d)&&d>0&&a.indexOf(d)===i);
     for(const d of opts){
       if(d>lim)continue;
-      if(p%6!==0){ /* 엇박 시작: 박 중간(12) 넘지 않게, 8분·4분·점4분까지 */
-        if(d>9)continue;if(p<12&&p+d>12)continue;
-        if(d===9&&p%6!==3)continue;
-      }else{
-        if(p===6&&d>6&&!(d===12&&!isRest))continue;
-        if(p===6&&d===12&&isRest)continue;
-        if(p===18&&d>6)continue;
-        if(p===12&&d>12)continue;
-        if(d===18&&p!==0)continue;
-        if(d===9&&p!==0&&p!==12)continue;
+      const end=p+d;
+      if(p%6===3){ if(d>9)continue; }
+      else{
+        if(end%6!==0&&d!==3&&d!==9)continue;
+        if(d===TPB&&p!==0)continue;
+        if(p>=TPB/2&&d>TPB/2)continue;
       }
       return d;
     }
     return 1;
   };
   let cursor=0;
-  const pushRest=(s,e2)=>{let t=s;while(t<e2){const d=legal(t,e2-t,true);pieces.push({t,d,midi:null});t+=d}};
+  const pushRest=(s,e2)=>{let t=s;while(t<e2){const d=legal(t,e2-t,true,TPB);pieces.push({t,d,midi:null});t+=d}};
   for(const e of events){
     if(e.t>cursor)pushRest(cursor,e.t);
     if(e.trip){pieces.push({t:e.t,d:e.d,midi:e.midi,trip:true,ev:e});cursor=e.t+e.d;continue}
     let t=e.t,end=e.t+e.d,first=true;
     while(t<end){
-      const d=legal(t,end-t,false);
+      const d=legal(t,end-t,false,TPB);
       pieces.push({t,d,midi:e.midi,tie:t+d<end&&e.midi!==null,ev:e,cont:!first});
-      if(!first&&Math.floor(t/24)!==Math.floor((t-1)/24)&&e.midi!==null)tag(Math.floor(t/24),'붙임줄 당김음');
+      if(!first&&Math.floor(t/TPB)!==Math.floor((t-1)/TPB)&&e.midi!==null)tag(Math.floor(t/24),'붙임줄 당김음');
       t+=d;first=false;
     }
     cursor=end;
@@ -600,8 +599,8 @@ function generateSolo(progId,keyPc,diff,seed,inst,opts){
   /* 3연음 그룹 보정: 그룹(박 단위)은 반드시 3개 */
   const result=bars.map((bar,b)=>({chords:bar,notes:[],tags:tagsAt[b]}));
   for(const p of pieces){
-    const b=Math.floor(p.t/24);
-    const n={t:p.t-b*24,d:p.d,midi:p.midi};
+    const b=Math.floor(p.t/TPB);
+    const n={t:p.t-b*TPB,d:p.d,midi:p.midi};
     if(p.trip)n.trip=true;if(p.tie)n.tie=true;
     if(p.ev&&!p.cont){if(p.ev.first)n.phStart=true;if(p.ev.last)n.phEnd=true}
     result[b].notes.push(n);
@@ -612,7 +611,7 @@ function generateSolo(progId,keyPc,diff,seed,inst,opts){
     if(!bar.notes.some(n=>n.midi!==null))tag(b,'쉼(호흡)');
   });
   phrases.forEach(ph=>tag(Math.floor(ph.e/4),'프레이즈 종지'));
-  return {progId,keyPc,diff,style:styleId,bars:result,ts:Date.now(),harm:segs.map(s=>({bar:s.bar,t0:s.t0,label:s.label,fn:s.fn,sname:s.sname})),
+  return {progId,keyPc,diff,style:styleId,bpb:BPB,bars:result,ts:Date.now(),harm:segs.map(s=>({bar:s.bar,t0:s.t0,label:s.label,fn:s.fn,sname:s.sname})),
     stats,form:{phrase:P,sections:sec.slice(0,nPh).split(''),licks:lickUse,phrases:phrases.length}};
 }
 

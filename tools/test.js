@@ -2,7 +2,7 @@
 const fs=require('fs');
 const code=['engine/engine_core.js','engine/style_data.js','engine/songs_part1.js','engine/songs_part2.js']
   .map(f=>fs.readFileSync(f,'utf8')).join('\n')
-  +'\nmodule.exports={generateSolo,toAbc,SONGDB,analyzeHarmony,barChords};';
+  +'\nmodule.exports={generateSolo,toAbc,SONGDB,analyzeHarmony,barChords,transposeSolo};';
 fs.writeFileSync('/tmp/opencode_test.js',code);
 const E=require('/tmp/opencode_test.js');
 let N=0,errs=[],viol={bar:0,range:0,leap:0,trip:0,overlap:0};
@@ -50,3 +50,17 @@ errs.slice(0,8).forEach(e=>console.log(' !',e));
 const r=(a,b)=>(100*a/Math.max(1,b)).toFixed(1)+'%';
 console.log('위반',{bar:viol.bar,range:viol.range,leap:viol.leap,trip:viol.trip,overlap:viol.overlap});
 console.log({강박코드톤:r(m.ctStrong,m.strong),전환가이드톤:r(m.guide,m.chg),크로매틱:r(m.chrom,m.notes),반복:r(m.rep,m.ivs)});
+/* 조 변환 검증 — 같은 솔로를 이동: 코드·음표가 정확히 같은 음정만큼 이동 */
+{
+  const base=E.generateSolo('all-of-me',0,2,777,'wind',{style:'all'});
+  let bad=0;
+  for(let tr=-11;tr<=11;tr++){
+    const t=E.transposeSolo(base,tr,'wind');
+    base.bars.forEach((b,bi)=>{
+      b.chords.forEach((c,ci)=>{if(t.bars[bi].chords[ci].root!==((c.root+tr)%12+12)%12)bad++});
+      b.notes.forEach((n,ni)=>{const m=t.bars[bi].notes[ni].midi;if(n.midi!==null&&(((m-n.midi-tr)%12+12)%12)!==0)bad++});
+    });
+  }
+  const b1=E.barChords(E.SONGDB['all-of-me'],2)[0][0];
+  console.log('조 변환 검증: 오류 '+bad+' · All of Me +2 첫 코드 root='+b1.root+'(D=2) '+b1.type);
+}

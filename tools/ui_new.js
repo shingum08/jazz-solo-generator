@@ -1,9 +1,10 @@
-/* ═══════════ UI · 재생 · 저장 (v0.13 간소화) ═══════════ */
+/* ═══════════ UI · 재생 · 저장 (v0.14) ═══════════ */
 'use strict';
 const $=s=>document.querySelector(s);
 const KEYNAMES=['C','D♭','D','E♭','E','F','G♭','G','A♭','A','B♭','B'];
 const GRP={'스윙':'미디엄/업템포 스윙','블루스':'블루스 & 리듬 체인지','라틴':'보사노바 & 라틴','발라드':'재즈 발라드','모달':'모달·쿨·하드밥','비밥·왈츠':'비밥·왈츠·기타 필수곡','연습':'연습용 진행'};
-const cur={selProg:'blue-bossa',trUser:0,selDiff:2,selInst:'wind',selTrans:0,useLicks:true,useGroups:true,style:'all',tone:'flugel',solo:null,abc:'',audio:null,saved:[]};
+const cur={selProg:'blue-bossa',trUser:0,selDiff:2,selInst:'wind',selTrans:0,useLicks:true,useGroups:true,style:'all',tone:'flugel',solo:null,abc:'',audio:null,saved:[],view:'both',playSolo:true,heads:{}};
+try{cur.heads=JSON.parse(localStorage.getItem('jsg-heads')||'{}')}catch(e){cur.heads={}}
 
 /* ── 곡 선택 박스 + 검색 ── */
 const songSel=$('#songSel');
@@ -42,13 +43,21 @@ function updStyleDesc(){const p=STYLE_DATA.profiles[cur.style];$('#styleDesc').t
 updStyleDesc();
 
 /* ── 조 변환 (반음 단위) ── */
+function keyLabel(pc,trDir){const s=SONGDB[cur.selProg];setSpelling(s,pc,trDir);return pcName(pc)+(songIsMinor(s)?'m':'')}
 function updTr(){
-  const s=SONGDB[cur.selProg],kn=KEYNAMES[((s.k+cur.trUser)%12+12)%12];
-  $('#trVal').textContent=kn+'조'+(cur.trUser?' ('+(cur.trUser>0?'+':'')+cur.trUser+'반음)':' (원곡 조)');
+  const s=SONGDB[cur.selProg];
+  const kn=keyLabel(songKeyPc(),cur.trUser);
+  $('#trVal').textContent=kn+(cur.trUser?' ('+(cur.trUser>0?'+':'')+cur.trUser+')':' (원조)');
   $('#btnTrDn').disabled=cur.trUser<=-11;$('#btnTrUp').disabled=cur.trUser>=11;
 }
-$('#btnTrUp').onclick=()=>{cur.trUser=Math.min(11,cur.trUser+1);updTr();regen()};
-$('#btnTrDn').onclick=()=>{cur.trUser=Math.max(-11,cur.trUser-1);updTr();regen()};
+function stopIfPlaying(){if(cur.audio){stopAll();$('#btnPlay').textContent='▶ 재생'}}
+function shiftKey(d){cur.trUser=Math.max(-11,Math.min(11,cur.trUser+d));updTr();stopIfPlaying();if(cur.soloBase){cur.shift=undefined;applyView()}}
+$('#btnTrUp').onclick=()=>shiftKey(1);
+$('#btnTrDn').onclick=()=>shiftKey(-1);
+
+/* ── 표시 · 재생 모드 ── */
+$('#viewSel').onchange=e=>{cur.view=e.target.value;if(cur.solo)renderSheet()};
+$('#playSel').onchange=e=>{cur.playSolo=e.target.value==='1';if(cur.audio){stopAll();playAll();$('#btnPlay').textContent='■ 정지'}};
 
 /* ── 난이도 ── */
 $('#diffSel').onchange=e=>{cur.selDiff=+e.target.value;regen()};
@@ -64,24 +73,63 @@ function buildSeg(el,items,onPick){
 }
 buildSeg($('#segInst'),[{label:'목관',init:true},{label:'금관'}],i=>{cur.selInst=i===0?'wind':'brass';regen()});
 buildSeg($('#segTone'),[{label:'플뤼겔혼',init:true},{label:'클라리넷'},{label:'신스'}],i=>{cur.tone=['flugel','clarinet','default'][i]});
-buildSeg($('#segNot'),[{label:'콘서트(C)',init:true},{label:'B♭ 악기용'}],i=>{cur.selTrans=i===1?2:0;if(cur.solo){cur.abc=toAbc(cur.solo,+$('#bpm').value,cur.selTrans||0);renderSheet()}});
+buildSeg($('#segNot'),[{label:'콘서트(C)',init:true},{label:'B♭ 악기용'}],i=>{cur.selTrans=i===1?2:0;if(cur.soloBase)applyView()});
 buildSeg($('#segLick'),[{label:'사용',init:true},{label:'끔'}],i=>{cur.useLicks=i===0;regen()});
 buildSeg($('#segGroup'),[{label:'켬',init:true},{label:'끔'}],i=>{cur.useGroups=i===0;regen()});
 $('#bpm').addEventListener('input',e=>{$('#bpmVal').textContent=e.target.value+' BPM'});
 $('#backvol').addEventListener('input',e=>{$('#bvVal').textContent=e.target.value+' %'});
 
 /* ── 생성 ── */
-function songKeyPc(){const s=SONGDB[cur.selProg];return ((s.k+cur.trUser)%12+12)%12}
+function origKey(){return SONGDB[cur.selProg].key}
+function songKeyPc(){return mod12(origKey()+cur.trUser)}
 function gen(newSeed){
-  const keyPc=songKeyPc();
-  const sig=[cur.selProg,keyPc,cur.selDiff,cur.selInst,cur.useLicks,cur.style,cur.useGroups].join('|');
+  const keyPc=origKey();
+  const sig=[cur.selProg,cur.selDiff,cur.selInst,cur.useLicks,cur.style,cur.useGroups].join('|');
   if(newSeed||cur.seed===undefined||cur.sig===undefined){cur.seed=Math.floor(Math.random()*1e6);cur.edits={};cur.sel=null}
   else if(sig!==cur.sig){cur.edits={};cur.sel=null}
   cur.sig=sig;
   cur.soloBase=generateSolo(cur.selProg,keyPc,cur.selDiff,cur.seed,cur.selInst,{useLicks:cur.useLicks!==false,style:cur.style,groups:cur.useGroups});
-  cur.solo=applyEdits(JSON.parse(JSON.stringify(cur.soloBase)),cur.edits);
-  cur.abc=toAbc(cur.solo,+$('#bpm').value,cur.selTrans||0);
-  renderSheet();$('#btnPlay').disabled=false;$('#btnSave').disabled=false;
+  cur.shift=undefined;
+  applyView();$('#btnPlay').disabled=false;$('#btnSave').disabled=false;
+}
+/* 원조 솔로 + 편집 → 사용자 조로 이동 → 악보·헤드 ABC */
+function applyView(){
+  const prog=SONGDB[cur.selProg],tr=cur.trUser,wt=cur.selTrans||0;
+  setSpelling(prog,songKeyPc(),tr);
+  if(cur.shift===undefined)cur.shift=transposeSolo(cur.soloBase,tr,cur.selInst).shift;
+  const edited=applyEdits(JSON.parse(JSON.stringify(cur.soloBase)),cur.edits);
+  cur.solo=transposeSolo(edited,tr,cur.selInst,cur.shift);
+  setSpelling(prog,mod12(songKeyPc()+wt),tr+wt);
+  cur.abc=toAbc(cur.solo,+$('#bpm').value,wt);
+  cur.headAbc=headAbc(prog,tr+wt);
+  setSpelling(prog,songKeyPc(),tr);
+  renderSheet();
+}
+/* 헤드(리드시트) — 형식 표시 + 슬래시 코드 차트, 사용자 조로 이동 */
+function abcKey(prog,tr){
+  setSpelling(prog,mod12(prog.key+tr),tr);
+  const k=pcName(mod12(prog.key+tr)).replace('♭','b').replace('♯','#')+(songIsMinor(prog)?'m':'');
+  return k;
+}
+function headAbc(prog,tr){
+  const K=abcKey(prog,tr),bpb=prog.bpb||4;
+  const bars=barChords(prog,prog.key).map(b=>b.map(c=>({root:mod12(c.root+tr),type:c.type})));
+  const secs=String((prog.form&&prog.form.sections)||'');const P=(prog.form&&prog.form.phrase)||8;
+  const rows=[];
+  for(let i=0;i<bars.length;i+=4){
+    rows.push(bars.slice(i,i+4).map((b,j)=>{
+      const bi=i+j;let lab='';
+      if(bi%P===0&&secs[bi/P])lab='"^['+secs[bi/P]+']"';
+      const half=b.length>1?(bpb===5?[3,2]:[Math.ceil(bpb/2),Math.floor(bpb/2)]):[bpb];
+      return ' '+lab+b.map((c,k)=>'"'+chordSymbol(c.root,c.type)+'"'+Array(half[k]).fill('B').join(' ')).join(' ')+' ';
+    }).join('|')+'|');
+  }
+  rows[rows.length-1]=rows[rows.length-1].replace(/\|$/,'|]');
+  return 'X:2\nM:'+bpb+'/4\nL:1/4\nK:'+K+'\nV:1 style=rhythm\n'+rows.join('\n');
+}
+function melodyAbc(prog,body){
+  const K=abcKey(prog,0);
+  return 'X:3\nM:'+(prog.bpb||4)+'/4\nL:1/8\nK:'+K+'\n'+body;
 }
 function regen(){if(cur.solo)gen(false)}
 songSel.onchange=()=>{
@@ -97,7 +145,19 @@ function renderSheet(){
   p.classList.remove('deal');void p.offsetWidth;p.classList.add('deal');
   const s=SONGDB[cur.selProg];
   $('#paperTitle').textContent=s.name;
-  $('#paperMeta').textContent=KEYNAMES[songKeyPc()]+'조 · '+s.bpm+' BPM 기본 · '+STYLE_DATA.profiles[cur.style].label+' · 난이도 '+cur.selDiff+' · '+INSTRUMENTS.find(x=>x.id===cur.selInst).name;
+  const kOrig=keyLabel(origKey(),0),kNow=keyLabel(songKeyPc(),cur.trUser);
+  $('#paperMeta').textContent=(cur.trUser?kNow+' (원곡 '+kOrig+')':kNow)+(cur.selTrans?' · B♭ 악기 기보':'')+' · '+s.bpm+' BPM 기본 · '+STYLE_DATA.profiles[cur.style].label+' · 난이도 '+cur.selDiff+' · '+INSTRUMENTS.find(x=>x.id===cur.selInst).name;
+  const tr=cur.trUser+(cur.selTrans||0);
+  $('#headWrap').style.display=cur.view==='solo'?'none':'block';
+  $('#soloWrap').style.display=cur.view==='head'?'none':'block';
+  const mel=cur.heads[cur.selProg];
+  $('#headLabel').textContent=mel?'HEAD · 내가 입력한 멜로디':'HEAD · 리드시트 (형식 + 코드 차트)';
+  $('#melInput').value=mel||'';
+  if(cur.view!=='solo'&&typeof ABCJS!=='undefined'){
+    const hs=$('#headStaff');hs.innerHTML='';
+    if(mel)ABCJS.renderAbc(hs,melodyAbc(s,mel),{responsive:'resize',visualTranspose:tr,paddingtop:0,paddingbottom:0,paddingleft:0,paddingright:0});
+    else ABCJS.renderAbc(hs,cur.headAbc,{responsive:'resize',paddingtop:0,paddingbottom:0,paddingleft:0,paddingright:0});
+  }
   const box=$('#staff');
   if(typeof ABCJS!=='undefined'){
     box.innerHTML='';
@@ -130,7 +190,7 @@ function renderSheet(){
 $('#btnSave').onclick=()=>{
   const s=cur.solo,sg=SONGDB[cur.selProg];
   cur.saved.unshift({id:s.ts,seed:cur.seed,song:cur.selProg,tr:cur.trUser,diff:cur.selDiff,inst:cur.selInst,licks:cur.useLicks!==false,groups:cur.useGroups,style:cur.style,
-    name:sg.name+' · '+KEYNAMES[songKeyPc()]+'조 · '+STYLE_DATA.profiles[cur.style].label+' · 난이도 '+cur.selDiff});
+    name:sg.name+' · '+keyLabel(songKeyPc(),cur.trUser)+' · '+STYLE_DATA.profiles[cur.style].label+' · 난이도 '+cur.selDiff});
   renderSaved();
 };
 function renderSaved(){
@@ -145,7 +205,7 @@ function renderSaved(){
       cur.selProg=item.song;cur.trUser=item.tr||0;cur.selDiff=item.diff;cur.selInst=item.inst||'wind';
       cur.useLicks=item.licks!==false;cur.useGroups=item.groups!==false;cur.style=item.style||'all';
       cur.seed=item.seed;cur.edits={};cur.sel=null;
-      cur.sig=[cur.selProg,songKeyPc(),cur.selDiff,cur.selInst,cur.useLicks,cur.style,cur.useGroups].join('|');
+      cur.sig=[cur.selProg,cur.selDiff,cur.selInst,cur.useLicks,cur.style,cur.useGroups].join('|');
       styleSel.value=cur.style;updStyleDesc();updTr();
       const s=SONGDB[cur.selProg];$('#bpm').value=s.bpm;$('#bpmVal').textContent=s.bpm+' BPM';
       songSel.value=cur.selProg;
@@ -231,14 +291,19 @@ function popAct(act){
   }else{
     const n=cur.solo.bars[b].notes[i];if(n.midi===null)return;
     const d=act==='up'?1:act==='dn'?-1:act==='ocu'?12:-12;
-    const m=Math.max(36,Math.min(96,n.midi+d));
+    const m=Math.max(36,Math.min(96,n.midi+d))-(cur.shift||0);
     if(m===cur.soloBase.bars[b].notes[i].midi)delete cur.edits[k];else cur.edits[k]={midi:m};
   }
-  cur.solo=applyEdits(JSON.parse(JSON.stringify(cur.soloBase)),cur.edits);
-  cur.abc=toAbc(cur.solo,+$('#bpm').value,cur.selTrans||0);
-  renderSheet();
+  applyView();
 }
 
+$('#melSave').onclick=()=>{
+  const v=$('#melInput').value.trim();
+  if(v)cur.heads[cur.selProg]=v;else delete cur.heads[cur.selProg];
+  try{localStorage.setItem('jsg-heads',JSON.stringify(cur.heads))}catch(e){}
+  if(cur.soloBase)renderSheet();
+};
+$('#melClear').onclick=()=>{$('#melInput').value='';$('#melSave').onclick()};
 $('#btnPlay').onclick=()=>{
   if($('#btnPlay').textContent.indexOf('정지')>=0){stopAll();$('#btnPlay').textContent='▶ 재생'}
   else if(typeof playAll==='function'){playAll();$('#btnPlay').textContent='■ 정지'}

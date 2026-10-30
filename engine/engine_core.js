@@ -100,7 +100,7 @@ function pickW(rng,cands){
   return cands[cands.length-1].v;
 }
 function nearest(arr,x){return arr.reduce((a,c)=>Math.abs(c-x)<Math.abs(a-x)?c:a,arr[0])}
-function barChords(prog,keyPc){return prog.bars.map(bar=>bar.map(c=>'o' in c?{root:((keyPc+c.o)%12+12)%12,type:c.t}:{root:((c.root%12)+12)%12,type:c.type}))}
+function barChords(prog,keyPc){const off=(prog.key!==undefined&&keyPc!==undefined&&!isNaN(keyPc))?keyPc-prog.key:0;return prog.bars.map(bar=>bar.map(c=>'o' in c?{root:((keyPc+c.o)%12+12)%12,type:c.t}:{root:(((c.root+off)%12)+12)%12,type:c.type}))}
 const mod12=x=>((x%12)+12)%12;
 
 function chordToneMidis(rootPc,type,lo,hi){
@@ -115,7 +115,43 @@ function chordToneMidis(rootPc,type,lo,hi){
    마디 → 코드 구간(segment). 각 구간에 기능·스케일·코드톤·가이드톤·텐션을 배정한다. */
 const CHORD_NAME=['C','D♭','D','E♭','E','F','G♭','G','A♭','A','B♭','B'];
 const SUF={maj7:'maj7',m7:'m7',m9:'m9','7':'7',m7b5:'m7♭5',dim7:'dim7','6':'6',m6:'m6','9':'9','7b9':'7♭9','7#9':'7♯9'};
-function chordSymbol(rootPc,type){return CHORD_NAME[mod12(rootPc)]+SUF[type]}
+const CHORD_NAME_S=['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];
+let SPELL_SHARP=false;
+/* 곡이 단조로 끝나는지(마지막 코드가 으뜸음 마이너) */
+function songIsMinor(prog){
+  const last=prog.bars[prog.bars.length-1],c=last[last.length-1];
+  const rel='o' in c?mod12(c.o):mod12(c.root-(prog.key||0)),t='o' in c?c.t:c.type;
+  return rel===0&&/^m(6|7|9)$/.test(t);
+}
+/* 조 철자 결정: 장조 기준(단조는 나란한조) G·D·A·E·B는 ♯, 위로 옮겨 도착한 C♯·F♯도 ♯ */
+function setSpelling(prog,keyPc,dir){
+  const maj=mod12(keyPc+(songIsMinor(prog)?3:0));
+  SPELL_SHARP=[7,2,9,4,11].includes(maj)||([1,6].includes(maj)&&dir>0);
+}
+function pcName(pc){return (SPELL_SHARP?CHORD_NAME_S:CHORD_NAME)[mod12(pc)]}
+function chordSymbol(rootPc,type){return pcName(rootPc)+SUF[type]}
+/* 생성된 솔로를 통째로 이조 — 코드·음표가 같은 음정만큼 이동. 음표는 악기 음역에 맞는 옥타브 선택 */
+function transposeSolo(solo,semis,inst,forceShift){
+  const RG={brass:[59,82],wind:[59,82],free:[52,86]}[inst||'free']||[52,86];
+  let mn=1e9,mx=-1e9;
+  solo.bars.forEach(b=>b.notes.forEach(n=>{if(n.midi!==null){mn=Math.min(mn,n.midi);mx=Math.max(mx,n.midi)}}));
+  let best=0;
+  if(forceShift!==undefined)best=forceShift;
+  else if(semis){
+    const d=mod12(semis);let bc=1e9;
+    for(const sh of (semis>0?[d,d-12]:[d-12,d])){
+      const over=Math.max(0,mx+sh-RG[1])+Math.max(0,RG[0]-(mn+sh));
+      const c=over*10+Math.abs(sh)+(Math.sign(sh)!==Math.sign(semis)?0.5:0);
+      if(c<bc){bc=c;best=sh}
+    }
+  }
+  const out=JSON.parse(JSON.stringify(solo));
+  out.bars.forEach(b=>{b.chords=b.chords.map(c=>({root:mod12(c.root+semis),type:c.type}));b.notes.forEach(n=>{if(n.midi!==null)n.midi+=best})});
+  out.keyPc=mod12(solo.keyPc+semis);out.shift=best;out.semis=semis;
+  const segs=analyzeHarmony(out.bars.map(b=>b.chords),out.keyPc,out.bpb||4);
+  out.harm=segs.map(sg=>({bar:sg.bar,t0:sg.t0,label:sg.label,fn:sg.fn,sname:sg.sname}));
+  return out;
+}
 function analyzeHarmony(bars,keyPc,bpb){
   bpb=bpb||4;const TPB=bpb*6,splt=bpb===5?18:12;
   const segs=[];
@@ -618,7 +654,8 @@ function generateSolo(progId,keyPc,diff,seed,inst,opts){
 /* ── ABC 악보 코드 변환 ── */
 const LETTERS=['C','D','E','F','G','A','B'];
 const NAT_PC=[0,2,4,5,7,9,11];
-const ROOT_LETTER=[0,1,1,2,2,3,3,4,5,5,6,6];
+const ROOT_LETTER_F=[0,1,1,2,2,3,3,4,5,5,6,6],ROOT_LETTER_S=[0,0,1,1,2,3,3,4,4,5,5,6];
+function rootLetter(pc){return (SPELL_SHARP?ROOT_LETTER_S:ROOT_LETTER_F)[mod12(pc)]}
 function letterAdvance(deg){return Math.round(deg*7/12)}
 function abcName(li,oct){
   if(oct>=6)return LETTERS[li].toLowerCase()+"'".repeat(oct-6);
@@ -627,7 +664,7 @@ function abcName(li,oct){
 /* midi → {acc, name(임시표 제외)} — 코드 뿌리 글자 기준 철자 */
 function spellParts(midi,rootPc,scale){
   const pc=mod12(midi);
-  const rootLi=ROOT_LETTER[mod12(rootPc)];
+  const rootLi=rootLetter(rootPc);
   const deg=mod12(pc-rootPc);
   let li=-1;
   if(scale.includes(deg))li=(rootLi+letterAdvance(deg))%7;
@@ -638,9 +675,9 @@ function spellParts(midi,rootPc,scale){
       if(scale.includes(deg2)){li=(rootLi+letterAdvance(deg2))%7;break}
     }
   }
-  if(li<0)li=ROOT_LETTER[pc];
+  if(li<0)li=rootLetter(pc);
   let diffPc=pc-NAT_PC[li];if(diffPc>6)diffPc-=12;if(diffPc<-6)diffPc+=12;
-  if(Math.abs(diffPc)>1){li=ROOT_LETTER[pc];diffPc=pc-NAT_PC[li];if(diffPc>6)diffPc-=12;if(diffPc<-6)diffPc+=12}
+  if(Math.abs(diffPc)>1){li=rootLetter(pc);diffPc=pc-NAT_PC[li];if(diffPc>6)diffPc-=12;if(diffPc<-6)diffPc+=12}
   const acc=diffPc===1?'^':(diffPc===-1?'_':'');
   const oct=Math.round((midi-NAT_PC[li]-diffPc)/12);
   return {acc,name:abcName(li,oct),letter:LETTERS[li]};
@@ -680,7 +717,7 @@ function toAbc(solo,tempo,transpose){
     });
     rows.push(chunk.join('|')+'|');
   }
-  return 'X:1\nT:Generated Solo\nM:4/4\nL:1/8\nQ:1/4='+tempo+'\nK:C\n'+rows.join('\n');
+  return 'X:1\nT:Generated Solo\nM:'+(solo.bpb||4)+'/4\nL:1/8\nQ:1/4='+tempo+'\nK:C\n'+rows.join('\n');
 }
 
 /* 편집 반영 — 편집된 음은 붙임줄을 끊는다 */

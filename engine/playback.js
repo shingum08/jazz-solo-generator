@@ -1,4 +1,4 @@
-/* ── Web Audio 재생 엔진 v0.12 ──
+/* ── Web Audio 재생 엔진 v0.14 ──
    · 스윙비: WJD 실측(템포별 중앙값 120BPM 0.63 → 280BPM 0.54) + 연주자 프로필 보정
    · 아티큘레이션: 붙임줄 음은 한 소리로, 엇박 8분 살짝 강조(비밥 악센트), 라인 속 낮은 음은 고스트,
      프레이즈 끝음은 길게 + 비브라토, 레가토 겹침
@@ -135,14 +135,14 @@ function playAll(){
       for(let k=1;k<bpb;k++)hat(ac,rb,barStart+k*spb,0.07);
     }
   });
-  buildAudioEvents(cur.solo,bpm,sw).forEach(e=>mel(ac,master,start+e.start,e.dur,e.midi,cur.tone||'flugel',e.vel,e.end));
+  if(cur.playSolo!==false)buildAudioEvents(cur.solo,bpm,sw).forEach(e=>mel(ac,master,start+e.start,e.dur,e.midi,cur.tone||'flugel',e.vel,e.end));
   const chips=[...$('#chips').children];
   const totalBeats=cur.solo.bars.length*bpb;
   const loop=()=>{
     if(!cur.audio)return;
     const el=ac.currentTime-start;
     chips.forEach((c,i)=>c.classList.toggle('lit',el>=0&&el<totalBeats*spb&&i===Math.floor(el/(bpb*spb))));
-    if(el>totalBeats*spb+1.2){stopAll();$('#btnPlay').textContent='▶ 반주와 함께 재생';return}
+    if(el>totalBeats*spb+1.2){stopAll();$('#btnPlay').textContent='▶ 재생';return}
     cur.audio.raf=requestAnimationFrame(loop);
   };
   loop();

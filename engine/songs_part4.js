@@ -1,4 +1,5 @@
-/* ── 리얼북 2권 추가 수록 (v0.15, 1차) ── RAW_SONGS.push(
+/* ── 리얼북 2권 추가 수록 (v0.15, 1차) ── */
+RAW_SONGS.push(
 {id:'ablution',n:'Ablution',c:'비밥·왈츠',k:7,bpm:200,f:['AB',8],
  ch:'Bmaj7|D7|Gmaj7|Bb7|Ebmaj7|Am7b5|D7|Gmaj7|Bb7|Ebmaj7|Am7|D7|Gmaj7|Bbm7 Eb7|Am7 D7|Gmaj7'},
 {id:'birks-works',n:"Birk's Works",c:'블루스',k:7,bpm:120,f:['AB',8],

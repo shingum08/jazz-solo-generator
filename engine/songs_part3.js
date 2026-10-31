@@ -1,6 +1,7 @@
 /* ── 리얼북 1권 추가 수록 (v0.15) ──
    코드 진행만 수록 — 원곡 멜로디·가사 없음. 진행은 "일반적으로 연주되는 스탠다드" 기준이며
-   판본(리얼북 판·연주자별 악보)에 따라 세부가 다를 수 있다. RAW_SONGS.push(
+   판본(리얼북 판·연주자별 악보)에 따라 세부가 다를 수 있다. */
+RAW_SONGS.push(
 {id:'afternoon-in-paris',n:'Afternoon In Paris',c:'스윙',k:0,bpm:140,f:['AABA',8],
  ch:'Cmaj7|Bm7b5 E7|Am7|D7b9|Dm7|G7|Cmaj7|Dm7 G7|Fmaj7|Em7 A7|Dm7|G7|Cmaj7|A7|Dm7 G7|Cmaj7|Cmaj7|Bm7b5 E7|Am7|D7b9|Dm7|G7|Cmaj7|Dm7 G7|Fm7|Bb7|Ebmaj7|Ab7|Dbmaj7|Dbm7 Gb7|Cmaj7|Dm7 G7'},
 {id:'airegin',n:'Airegin',c:'비밥·왈츠',k:7,bpm:200,f:['AABA',8],

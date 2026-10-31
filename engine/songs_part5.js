@@ -1,4 +1,5 @@
-/* ── 리얼북 3권·6권 1차 수록 (v0.15) ── RAW_SONGS.push(
+/* ── 리얼북 3권·6권 1차 수록 (v0.15) ── */
+RAW_SONGS.push(
 {id:'east-of-the-sun',n:'East Of The Sun (And West Of The Moon)',c:'스윙',k:5,bpm:140,f:['AABA',8],
  ch:'Fmaj7|D7|Gm7|C7|Fmaj7|D7|Gm7 C7|F6|Fmaj7|D7|Gm7|C7|Fmaj7|D7|Gm7 C7|F6|Am7|D7|Gm7|C7|Fmaj7|D7|Gm7 C7|F6|Fmaj7|D7|Gm7|C7|Fmaj7|D7|Gm7 C7|F6'},
 {id:'indian-summer',n:'Indian Summer',c:'발라드',k:8,bpm:90,f:['AB',8],

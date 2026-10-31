@@ -6,14 +6,14 @@
 사용법: python3 tools/build.py   (repo 루트에서 실행)
 """
 import re, os
+import glob
 here=os.path.dirname(os.path.abspath(__file__)); root=os.path.dirname(here)
 tpl=open(os.path.join(root,'app','template.html'),encoding='utf-8').read()
 eng=open(os.path.join(root,'engine','engine_core.js'),encoding='utf-8').read()
 data=open(os.path.join(root,'engine','style_data.js'),encoding='utf-8').read()
 songs=''
-for f in ['songs_part1.js','songs_part2.js','songs_part3.js','songs_part4.js','songs_part5.js']:
-    fp=os.path.join(root,'engine',f)
-    if os.path.exists(fp):songs+=open(fp,encoding='utf-8').read()
+for fp in sorted(glob.glob(os.path.join(root,'engine','songs_part*.js'))):
+    songs+=open(fp,encoding='utf-8').read()
 pb=open(os.path.join(root,'engine','playback.js'),encoding='utf-8').read()
 out=re.sub(r'<script id="engine">[\s\S]*?</script>',
            lambda m:'<script id="engine">\n'+eng+'\n'+data+'\n'+songs+'\n</script>',tpl,count=1)

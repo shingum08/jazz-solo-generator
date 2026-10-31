@@ -5,6 +5,8 @@
 
 > 마스터 기획안: [docs/blueprint-v1.0.pdf](docs/blueprint-v1.0.pdf) — 프로젝트 전체 로드맵(v1~v4), ML·RAG 확장 설계, 비용·법무 프레임.
 
+## v0.16: 리얼북 2·3·4·5권 확장 — 총 곡(확실히 아는 곡만, 원곡 멜로디·가사 미포함). build/test가 songs_part*.js를 자동 glob 수집.
+
 ## 실행
 
 빌드가 끌어진 결과물 하나(`index.html`)로 완결된 앱이다. 파일을 브라우저로 열면 끝난다.

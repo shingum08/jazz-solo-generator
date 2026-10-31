@@ -17,7 +17,7 @@ RAW_SONGS.push(
 {id:'cry-me-a-river',n:'Cry Me a River',c:'발라드',k:0,bpm:70,f:['AAB',8],
  ch:'Cm7|Cm7|Fm7|Fm7|Cm7|Cm7|G7|G7|Cm7|Cm7|Fm7|Fm7|Cm7|Ab7|G7|Cm7'},
 {id:'dark-eyes',n:'Dark Eyes',c:'집시 스윙',k:9,bpm:140,f:['AAB',4],
- ch:'Am7|Am7|E7|E7|Am7|Am7|A7|Dm|Am7|Am7|E7|Am7'},
+ ch:'Am7|Am7|E7|E7|Am7|Am7|A7|Dm7|Am7|Am7|E7|Am7'},
 {id:'deed-i-do',n:"'Deed I Do",c:'스윙',k:5,bpm:150,f:['AAB',8],
  ch:'F6|F6|D7|D7|G7|C7|F6|C7|F7|F7|Bb6|Bb6|F7|C7|F6|C7'},
 {id:'dig',n:'Dig',c:'비밥',k:10,bpm:180,f:['AABA',8],

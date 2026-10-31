@@ -1,4 +1,4 @@
-/* ── Web Audio 재생 엔진 v0.14 ──
+/* ── Web Audio 재생 엔진 v0.18 (룩어헤드 스케줄러 · 코러스별 솔로) ──
    · 스윙비: WJD 실측(템포별 중앙값 120BPM 0.63 → 280BPM 0.54) + 연주자 프로필 보정
    · 아티큘레이션: 붙임줄 음은 한 소리로, 엇박 8분 살짝 강조(비밥 악센트), 라인 속 낮은 음은 고스트,
      프레이즈 끝음은 길게 + 비브라토, 레가토 겹침
@@ -89,9 +89,12 @@ function voicingFor(ch,prevV){
   return best?best.v:[r+52,r+56,r+59,r+62];
 }
 function playAllInner(){
+  /* v0.18 — 룩어헤드 스케줄러: 모든 음을 한 번에 만들지 않고 1초 앞까지만 예약(브라우저 부하·무음 방지)
+     코러스마다 서로 다른 솔로(cur.solos[c])를 이어서 재생 */
   stopAll();
+  const sols=(cur.solos&&cur.solos.length)?cur.solos:[cur.solo];
   const bpm=+$('#bpm').value;
-  const bpb=cur.solo.bpb||4;
+  const bpb=sols[0].bpb||4;
   const sw=swingRatio(bpm,cur.style);
   const ac=new (window.AudioContext||window.webkitAudioContext)();
   if(ac.resume)ac.resume();  /* 자동재생 정책: suspended 해제 */
@@ -101,57 +104,68 @@ function playAllInner(){
   const rb=ac.createGain();
   rb.gain.value=Math.max(0,(+$('#backvol').value||90)/100)*2.6;
   rb.connect(master);
-  const spb=60/bpm;
-  const t0=ac.currentTime+0.1;
-  const start=t0+4*spb;
-  cur.audio={ac,master,raf:null};
-  for(let i=0;i<4;i++)click(ac,master,t0+i*spb,i===0?1400:1000,i===0?0.5:0.3);
-  const bl=bassLine(cur.solo,cur.seed);
+  const spb=60/bpm,t0=ac.currentTime+0.15,start=t0+4*spb;
+  const nb=sols[0].bars.length,barLen=bpb*spb,chLen=nb*barLen,nCh=sols.length;
+  cur.audio={ac,master,raf:null,timer:null,start,chLen,barLen,nCh,nb,endAt:start+nCh*chLen};
+  const jobs=[];
+  for(let i=0;i<4;i++){const tt=t0+i*spb;jobs.push({t:tt,f:()=>click(ac,master,tt,i===0?1400:1000,i===0?0.5:0.3)})}
   const rng=mulberry32((cur.seed||1)*13+5);
   /* 컴핑: 찰스턴·푸시(4&→1)·2&·4박 등 싱커페이션 — 마디마다 확률적으로 고른다 */
   const COMP=bpb===3?[[0,1+sw],[0+sw,2],[1,2+sw],[0,1]]:(bpb===5?[[0,2+sw],[1+sw,3],[0,3+sw],[2,4],[1,4]]:[[0,1+sw],[0+sw,2+sw],[1+sw,3],[0,2+sw],[1,3+sw],[sw,3]]);
   let prevV=null;
-  const nCh=Math.max(1,Math.min(6,(()=>{const v=$('#chorusSel')?+$('#chorusSel').value:1;return isFinite(v)&&v>=1?v:1})()));
-  cur.audio.chorus=nCh;
-  for(let cr=0;cr<nCh;cr++)cur.solo.bars.forEach((bar,bi)=>{
-    const barStart=start+(cr*cur.solo.bars.length+bi)*bpb*spb;
-    const pat=COMP[Math.floor(rng()*COMP.length)];
-    pat.forEach(bt=>{
-      const beatAbs=bt%bpb;
-      const ch=bar.chords[(beatAbs>=bpb/2&&bar.chords.length>1)?1:0];
-      const v=voicingFor(ch,prevV);prevV=v;
-      const len=(bt%1===0?0.9:0.55)*spb;
-      pianoHit(ac,rb,barStart+tickToBeat(Math.round(beatAbs*6),sw)*spb,len,v,0.12);
+  sols.forEach((so,cr)=>{
+    const bl=bassLine(so,(cur.seed||1)+cr*7919);
+    so.bars.forEach((bar,bi)=>{
+      const barStart=start+cr*chLen+bi*barLen;
+      jobs.push({t:barStart-0.05,f:()=>{
+        const pat=COMP[Math.floor(rng()*COMP.length)];
+        pat.forEach(bt=>{
+          const beatAbs=bt%bpb;
+          const ch=bar.chords[(beatAbs>=bpb/2&&bar.chords.length>1)?1:0];
+          const v=voicingFor(ch,prevV);prevV=v;
+          const len=(bt%1===0?0.9:0.55)*spb;
+          pianoHit(ac,rb,barStart+tickToBeat(Math.round(beatAbs*6),sw)*spb,len,v,0.12);
+        });
+        if(bar.chords.length>1&&!pat.some(bt=>bt>=bpb/2)){const v=voicingFor(bar.chords[1],prevV);prevV=v;pianoHit(ac,rb,barStart+tickToBeat(Math.ceil(bpb/2)*6,sw)*spb,0.8*spb,v,0.11)}
+        bl[bi].forEach((m,k)=>bass(ac,rb,barStart+k*spb,0.92*spb,m,k===0?1:(k%2?0.8:0.9)));
+        if(bpb===4){
+          kick(ac,rb,barStart,0.25);
+          snare(ac,rb,barStart+1*spb,0.12);snare(ac,rb,barStart+3*spb,0.12);
+          if(rng()<0.25)snare(ac,rb,barStart+(2+sw)*spb,0.05);
+          [0,1,1+sw,2,3,3+sw].forEach(bt=>ridePing(ac,rb,barStart+bt*spb,bt%1?0.045:(bt%2?0.08:0.065)));
+          hat(ac,rb,barStart+1*spb,0.08);hat(ac,rb,barStart+3*spb,0.08);
+        }else{  /* 왈츠·5/4 — 1박 킥, 나머지 박 가벼운 스네어, 박마다 라이드 */
+          kick(ac,rb,barStart,0.25);
+          for(let k=1;k<bpb;k++)snare(ac,rb,barStart+k*spb,0.10);
+          for(let k=0;k<bpb;k++){ridePing(ac,rb,barStart+k*spb,k%2?0.05:0.07);if(bpb===5||k%2===0)ridePing(ac,rb,barStart+(k+sw)*spb,0.04)}
+          for(let k=1;k<bpb;k++)hat(ac,rb,barStart+k*spb,0.07);
+        }
+      }});
     });
-    if(bar.chords.length>1&&!pat.some(bt=>bt>=bpb/2)){const v=voicingFor(bar.chords[1],prevV);prevV=v;pianoHit(ac,rb,barStart+tickToBeat(Math.ceil(bpb/2)*6,sw)*spb,0.8*spb,v,0.11)}
-    bl[bi].forEach((m,k)=>bass(ac,rb,barStart+k*spb,0.92*spb,m,k===0?1:(k%2?0.8:0.9)));
-    if(bpb===4){
-      kick(ac,rb,barStart,0.25);
-      snare(ac,rb,barStart+1*spb,0.12);snare(ac,rb,barStart+3*spb,0.12);
-      if(rng()<0.25)snare(ac,rb,barStart+(2+sw)*spb,0.05);
-      [0,1,1+sw,2,3,3+sw].forEach(bt=>ridePing(ac,rb,barStart+bt*spb,bt%1?0.045:(bt%2?0.08:0.065)));
-      hat(ac,rb,barStart+1*spb,0.08);hat(ac,rb,barStart+3*spb,0.08);
-    }else{  /* 왈츠·5/4 — 1박 킥, 나머지 박 가벼운 스네어, 박마다 라이드 */
-      kick(ac,rb,barStart,0.25);
-      for(let k=1;k<bpb;k++)snare(ac,rb,barStart+k*spb,0.10);
-      for(let k=0;k<bpb;k++){ridePing(ac,rb,barStart+k*spb,k%2?0.05:0.07);if(bpb===5||k%2===0)ridePing(ac,rb,barStart+(k+sw)*spb,0.04)}
-      for(let k=1;k<bpb;k++)hat(ac,rb,barStart+k*spb,0.07);
-    }
+    if(cur.playSolo!==false)buildAudioEvents(so,bpm,sw).forEach(e=>{
+      const tt=start+cr*chLen+e.start;
+      jobs.push({t:tt-0.02,f:()=>mel(ac,master,tt,e.dur,e.midi,cur.tone||'flugel',e.vel,e.end)});
+    });
   });
-  if(cur.playSolo!==false){
-    const evs=buildAudioEvents(cur.solo,bpm,sw);
-    const blen=cur.solo.bars.length*bpb*spb;
-    for(let cr=0;cr<nCh;cr++)evs.forEach(e=>mel(ac,master,start+cr*blen+e.start,e.dur,e.midi,cur.tone||'flugel',e.vel,e.end));
-  }
-  const chips=[...$('#chips').children];
-  const totalBeats=cur.solo.bars.length*bpb;
-  cur.audio.endAt=start+nCh*cur.solo.bars.length*bpb*spb;
+  jobs.sort((x,y)=>x.t-y.t);
+  let ji=0;
+  const LA=(typeof window!=='undefined'&&window.__PB_LOOKAHEAD)||1.0;
+  const au=cur.audio;
+  const pump=()=>{
+    if(cur.audio!==au)return;
+    const h=ac.currentTime+LA;
+    while(ji<jobs.length&&jobs[ji].t<h){try{jobs[ji].f()}catch(e){console.error('스케줄 오류:',e)}ji++}
+  };
+  pump();au.timer=setInterval(pump,50);
   const loop=()=>{
-    if(!cur.audio)return;
+    if(cur.audio!==au)return;
     const el=ac.currentTime-start;
-    chips.forEach((c,i)=>c.classList.toggle('lit',el>=0&&el<totalBeats*spb&&i===Math.floor(el/(bpb*spb))%cur.solo.bars.length));
-    if(el>cur.audio.endAt-start+1.2){stopAll();$('#btnPlay').textContent='▶ 재생';return}
-    cur.audio.raf=requestAnimationFrame(loop);
+    if(el>=0&&el<nCh*chLen){
+      const cr=Math.floor(el/chLen),bi=Math.floor((el-cr*chLen)/barLen);
+      if(typeof onPlayPos==='function'){try{onPlayPos(cr,bi)}catch(e){}}  /* 화면 갱신 오류가 재생을 멈추지 않게 */
+    }
+    if(ac.currentTime>au.endAt+1.2){stopAll();$('#btnPlay').textContent='▶ 재생';return}
+    au.raf=requestAnimationFrame(loop);
   };
   loop();
 }
@@ -271,6 +285,7 @@ function mel(ac,out,when,dur,midi,tone,vel,isEnd){
 function stopAll(){
   if(cur.audio){
     if(cur.audio.raf)cancelAnimationFrame(cur.audio.raf);
+    if(cur.audio.timer)clearInterval(cur.audio.timer);
     try{cur.audio.ac.close()}catch(e){}
     cur.audio=null;
     [...$('#chips').children].forEach(c=>c.classList.remove('lit'));

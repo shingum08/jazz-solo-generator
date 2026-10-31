@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>즉흥 악보 생성기 v0.14 — 화성 분석 · 타깃음 라인 · 연주자 스타일</title>
+<title>즉흥 악보 생성기 v0.15 — 화성 분석 · 타깃음 라인 · 연주자 스타일</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Sans+KR:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
@@ -15,7 +15,7 @@
 </script>
 <script>
 /*__PLAYBACK_START__*/
-/* ── Web Audio 재생 엔진 v0.13 ──
+/* ── Web Audio 재생 엔진 v0.15 ──
    · 스윙비: WJD 실측(템포별 중앙값 120BPM 0.63 → 280BPM 0.54) + 연주자 프로필 보정
    · 아티큘레이션: 붙임줄 음은 한 소리로, 엇박 8분 살짝 강조(비밥 악센트), 라인 속 낮은 음은 고스트,
      프레이즈 끝음은 길게 + 비브라토, 레가토 겹침
@@ -531,7 +531,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
 .editpop .popbtns button:hover{border-color:var(--brass);color:var(--brass-deep)}
 .notehead-sel{fill:var(--rose)!important;stroke:var(--rose)!important}
 
-/* v0.13 툴바 · 드롭다운 */
+/* v0.15 툴바 · 드롭다운 */
 .toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin:12px 0 12px}
 .tb{display:flex;flex-direction:column;gap:5px;min-width:130px}
 .tb.grow{flex:1 1 220px}
@@ -548,10 +548,6 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
 .trbtn:disabled{opacity:.3;cursor:not-allowed}
 .seclab{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.16em;color:var(--ink-soft);margin:4px 0 2px}
 .sololab{margin-top:14px;padding-top:10px;border-top:1px dashed rgba(37,42,34,.25)}
-#headStaff svg{width:100%;height:auto}
-.melfield{grid-column:1/-1}
-.melfield textarea{width:100%;background:var(--panel-2);color:var(--txt);border:1px solid var(--line);border-radius:9px;padding:10px;font-family:'JetBrains Mono',monospace;font-size:13px;resize:vertical}
-.melbtns{display:flex;gap:8px;margin-top:6px}
 .adv{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 18px;margin-bottom:22px}
 .adv summary{cursor:pointer;color:var(--mut);font-size:13.5px}
 .adv summary:hover{color:var(--brass)}
@@ -562,7 +558,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
 <body>
 <header class="site">
   <div class="wrap">
-    <div class="eyebrow">Concept Prototype · v0.14</div>
+    <div class="eyebrow">Concept Prototype · v0.15</div>
     <h1>즉흥 악보 생성기</h1>
     <p class="sub">리얼북 필수 <b style="color:var(--brass);font-weight:500">100곡</b>의 코드 진행 위에 매번 새로운 연습용 솔로를 만듭니다. 곡 검색 · 아티스트 스타일 · 반음 단위 조 변환을 지원합니다.</p>
   </div>
@@ -574,8 +570,9 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
     <div class="tb grow"><label>곡 <span class="cnt" id="searchCount"></span></label><select id="songSel"></select></div>
     <div class="tb grow"><label>아티스트 스타일</label><select id="styleSel"></select></div>
     <div class="tb"><label>조 변환 (반음)</label><div class="trbox"><button id="btnTrDn" class="trbtn">−</button><span id="trVal">—</span><button id="btnTrUp" class="trbtn">＋</button></div></div>
-    <div class="tb"><label>악보 표시</label><select id="viewSel"><option value="both" selected>헤드 + 솔로</option><option value="solo">솔로만</option><option value="head">헤드만</option></select></div>
+    <div class="tb"><label>악보 표시</label><select id="viewSel"><option value="both" selected>차트 + 솔로</option><option value="chart">코드 차트만</option><option value="solo">솔로만</option></select></div>
     <div class="tb"><label>재생</label><select id="playSel"><option value="1" selected>솔로 + 반주</option><option value="0">반주만</option></select></div>
+    <div class="tb"><label>코러스</label><select id="chorusSel"><option value="1">1코러스</option><option value="2" selected>2코러스</option><option value="3">3코러스</option><option value="4">4코러스</option></select></div>
     <div class="tb"><label>난이도</label><select id="diffSel"><option value="1">1 · 입문</option><option value="2" selected>2 · 중급</option><option value="3">3 · 심화</option></select></div>
     <div class="tb btns"><button class="btn primary" id="btnGen">악보 생성</button><button class="btn play" id="btnPlay" disabled>▶ 재생</button><button class="btn ghost" id="btnSave" disabled>♡ 저장</button></div>
   </div>
@@ -584,7 +581,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
       <span class="t" id="paperTitle">악보를 고르세요</span>
       <span class="m" id="paperMeta"></span>
     </div>
-    <div id="headWrap" style="display:none"><div class="seclab" id="headLabel">HEAD</div><div id="headStaff"></div></div>
+    <div id="chartWrap" style="display:none"><div class="seclab">CHART · 코드 차트 (코드만 표시 · 노트 없음)</div><div id="chartStaff"></div></div>
     <div id="soloWrap"><div class="seclab sololab">SOLO · 즉흥 솔로 (생성)</div>
     <div id="staff"><div class="empty">위에서 곡을 고르면<br>이 종이 위에 새로운 솔로가 쓰입니다.</div></div>
     </div>
@@ -602,10 +599,6 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
       <div class="field"><label>음역군 규칙</label><div class="seg" id="segGroup"></div></div>
       <div class="field"><label>템포 <span class="bpmval" id="bpmVal">145 BPM</span></label><input type="range" id="bpm" min="60" max="260" value="145" step="1"></div>
       <div class="field"><label>반주 음량 <span class="bpmval" id="bvVal">90%</span></label><input type="range" id="backvol" min="0" max="150" value="90" step="5"></div>
-    </div>
-    <div class="field melfield"><label>헤드 멜로디 직접 입력 (ABC 표기 · 원곡 조로 · 이 브라우저에만 저장)</label>
-      <textarea id="melInput" rows="3" placeholder="예: C2 E2 G2 A2 | B4 A4 | ...   (L:1/8 기준, 마디는 |) — 입력하면 리드시트 대신 이 멜로디가 헤드에 표시되고 조 변환도 따라갑니다."></textarea>
-      <div class="melbtns"><button class="btn ghost" id="melSave">헤드에 적용</button><button class="btn ghost" id="melClear">지우기</button></div>
     </div>
     <p class="hint" style="padding-bottom:6px">음 편집 — 악보의 음표·쉼표를 클릭하면 그 음만 고칩니다(반음·옥타브 이동, 쉼표 전환). 편집은 설정을 바꿔도 유지되고 「악보 생성」을 누르면 새 솔로로 바뀝니다.</p>
   </details>
@@ -627,8 +620,8 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
 
 <section class="how">
   <div class="wrap">
-    <h2>v0.13 엔진이 한 소절을 만드는 순서</h2>
-    <p class="lead">v0.11까지는 "지금 이 코드에 어울리는 음"을 한 음씩 확률로 골랐습니다. 이 방식에서는 라인에 방향이 생기지 않습니다. 실제 연주자는 <b style="color:var(--txt)">다음 코드에서 어디에 도착할지</b>를 먼저 정하고 그쪽으로 걸어갑니다. v0.13는 이 순서를 그대로 따릅니다.</p>
+    <h2>v0.15 엔진이 한 소절을 만드는 순서</h2>
+    <p class="lead">v0.11까지는 "지금 이 코드에 어울리는 음"을 한 음씩 확률로 골랐습니다. 이 방식에서는 라인에 방향이 생기지 않습니다. 실제 연주자는 <b style="color:var(--txt)">다음 코드에서 어디에 도착할지</b>를 먼저 정하고 그쪽으로 걸어갑니다. v0.15는 이 순서를 그대로 따릅니다.</p>
     <div class="layers">
       <div class="layer"><div class="n">STEP 1 · 화성 분석</div><h4>코드의 기능 읽기</h4><p>D7→Gm이면 "단조로 가는 Ⅴ" → ♭9·♭13 사용. G♭7→F면 트라이톤 대리 → 리디안 ♭7. 해결되는 maj7은 Ⅰ, Ⅳ 자리는 리디안. 같은 7th 코드라도 가는 곳에 따라 스케일이 달라집니다.</p></div>
       <div class="layer"><div class="n">STEP 2 · 호흡</div><h4>프레이즈·쉼 계획</h4><p>연주자별 실측 프레이즈 길이와 쉼 길이 분포로 호흡을 정하고, 8마디 형식 경계 직전에 종지하도록 맞춥니다. 목관은 최대 2마디마다 숨을 쉽니다.</p></div>
@@ -653,8 +646,8 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
 </footer>
 
 <script id="engine">
-/* ═══════════ 음악 엔진 v0.13 (UI와 분리 · 순수 로직) ═══════════
-   v0.11 → v0.13 핵심 변경
+/* ═══════════ 음악 엔진 v0.15 (UI와 분리 · 순수 로직) ═══════════
+   v0.11 → v0.15 핵심 변경
    ① 화성 분석: 코드 종류만이 아니라 "기능"을 읽는다 (Ⅱ·Ⅴ→장조/단조·트라이톤 대리·Ⅳ 리디안·토닉 마이너)
       → 코드마다 코드-스케일·텐션·가이드톤(3·7음)을 따로 배정
    ② 타깃음 라인: 코드가 바뀌는 다운비트에 가이드톤을 먼저 정하고, 그 앞 1~2음을
@@ -1367,8 +1360,7 @@ STYLE_DATA.cells=STYLE_DATA.cells.concat(CURATED_CELLS.map((c,i)=>Object.assign(
 const $=s=>document.querySelector(s);
 const KEYNAMES=['C','D♭','D','E♭','E','F','G♭','G','A♭','A','B♭','B'];
 const GRP={'스윙':'미디엄/업템포 스윙','블루스':'블루스 & 리듬 체인지','라틴':'보사노바 & 라틴','발라드':'재즈 발라드','모달':'모달·쿨·하드밥','비밥·왈츠':'비밥·왈츠·기타 필수곡','연습':'연습용 진행'};
-const cur={selProg:'blue-bossa',trUser:0,selDiff:2,selInst:'wind',selTrans:0,useLicks:true,useGroups:true,style:'all',tone:'flugel',solo:null,abc:'',audio:null,saved:[],view:'both',playSolo:true,heads:{}};
-try{cur.heads=JSON.parse(localStorage.getItem('jsg-heads')||'{}')}catch(e){cur.heads={}}
+const cur={selProg:'blue-bossa',trUser:0,selDiff:2,selInst:'wind',selTrans:0,useLicks:true,useGroups:true,style:'all',tone:'flugel',solo:null,abc:'',audio:null,saved:[],view:'both',playSolo:true,chorus:2};
 
 /* ── 곡 선택 박스 + 검색 ── */
 const songSel=$('#songSel');
@@ -1421,6 +1413,7 @@ $('#btnTrDn').onclick=()=>shiftKey(-1);
 
 /* ── 표시 · 재생 모드 ── */
 $('#viewSel').onchange=e=>{cur.view=e.target.value;if(cur.solo)renderSheet()};
+$('#chorusSel').onchange=e=>{cur.chorus=+e.target.value;if(cur.audio){stopAll();playAll();$('#btnPlay').textContent='■ 정지'}};
 $('#playSel').onchange=e=>{cur.playSolo=e.target.value==='1';if(cur.audio){stopAll();playAll();$('#btnPlay').textContent='■ 정지'}};
 
 /* ── 난이도 ── */
@@ -1465,7 +1458,7 @@ function applyView(){
   cur.solo=transposeSolo(edited,tr,cur.selInst,cur.shift);
   setSpelling(prog,mod12(songKeyPc()+wt),tr+wt);
   cur.abc=toAbc(cur.solo,+$('#bpm').value,wt);
-  cur.headAbc=headAbc(prog,tr+wt);
+  cur.chartAbc=headAbc(prog,tr+wt);
   setSpelling(prog,songKeyPc(),tr);
   renderSheet();
 }
@@ -1491,10 +1484,6 @@ function headAbc(prog,tr){
   rows[rows.length-1]=rows[rows.length-1].replace(/\|$/,'|]');
   return 'X:2\nM:'+bpb+'/4\nL:1/4\nK:'+K+'\nV:1 style=rhythm\n'+rows.join('\n');
 }
-function melodyAbc(prog,body){
-  const K=abcKey(prog,0);
-  return 'X:3\nM:'+(prog.bpb||4)+'/4\nL:1/8\nK:'+K+'\n'+body;
-}
 function regen(){if(cur.solo)gen(false)}
 songSel.onchange=()=>{
   cur.selProg=songSel.value;cur.trUser=0;updTr();
@@ -1511,16 +1500,11 @@ function renderSheet(){
   $('#paperTitle').textContent=s.name;
   const kOrig=keyLabel(origKey(),0),kNow=keyLabel(songKeyPc(),cur.trUser);
   $('#paperMeta').textContent=(cur.trUser?kNow+' (원곡 '+kOrig+')':kNow)+(cur.selTrans?' · B♭ 악기 기보':'')+' · '+s.bpm+' BPM 기본 · '+STYLE_DATA.profiles[cur.style].label+' · 난이도 '+cur.selDiff+' · '+INSTRUMENTS.find(x=>x.id===cur.selInst).name;
-  const tr=cur.trUser+(cur.selTrans||0);
-  $('#headWrap').style.display=cur.view==='solo'?'none':'block';
-  $('#soloWrap').style.display=cur.view==='head'?'none':'block';
-  const mel=cur.heads[cur.selProg];
-  $('#headLabel').textContent=mel?'HEAD · 내가 입력한 멜로디':'HEAD · 리드시트 (형식 + 코드 차트)';
-  $('#melInput').value=mel||'';
+  $('#chartWrap').style.display=cur.view==='solo'?'none':'block';
+  $('#soloWrap').style.display=cur.view==='chart'?'none':'block';
   if(cur.view!=='solo'&&typeof ABCJS!=='undefined'){
-    const hs=$('#headStaff');hs.innerHTML='';
-    if(mel)ABCJS.renderAbc(hs,melodyAbc(s,mel),{responsive:'resize',visualTranspose:tr,paddingtop:0,paddingbottom:0,paddingleft:0,paddingright:0});
-    else ABCJS.renderAbc(hs,cur.headAbc,{responsive:'resize',paddingtop:0,paddingbottom:0,paddingleft:0,paddingright:0});
+    const cs=$('#chartStaff');cs.innerHTML='';
+    ABCJS.renderAbc(cs,cur.chartAbc,{responsive:'resize',paddingtop:0,paddingbottom:0,paddingleft:0,paddingright:0});
   }
   const box=$('#staff');
   if(typeof ABCJS!=='undefined'){
@@ -1661,13 +1645,7 @@ function popAct(act){
   applyView();
 }
 
-$('#melSave').onclick=()=>{
-  const v=$('#melInput').value.trim();
-  if(v)cur.heads[cur.selProg]=v;else delete cur.heads[cur.selProg];
-  try{localStorage.setItem('jsg-heads',JSON.stringify(cur.heads))}catch(e){}
-  if(cur.soloBase)renderSheet();
-};
-$('#melClear').onclick=()=>{$('#melInput').value='';$('#melSave').onclick()};
+
 $('#btnPlay').onclick=()=>{
   if($('#btnPlay').textContent.indexOf('정지')>=0){stopAll();$('#btnPlay').textContent='▶ 재생'}
   else if(typeof playAll==='function'){playAll();$('#btnPlay').textContent='■ 정지'}

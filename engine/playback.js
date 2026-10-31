@@ -110,12 +110,14 @@ function playAll(){
   /* 컴핑: 찰스턴·푸시(4&→1)·2&·4박 등 싱커페이션 — 마디마다 확률적으로 고른다 */
   const COMP=bpb===3?[[0,1+sw],[0+sw,2],[1,2+sw],[0,1]]:(bpb===5?[[0,2+sw],[1+sw,3],[0,3+sw],[2,4],[1,4]]:[[0,1+sw],[0+sw,2+sw],[1+sw,3],[0,2+sw],[1,3+sw],[sw,3]]);
   let prevV=null;
-  cur.solo.bars.forEach((bar,bi)=>{
-    const barStart=start+bi*4*spb;
+  const nCh=Math.max(1,Math.min(6,+($('#chorusSel')?$('#chorusSel').value:1)||1));
+  cur.audio.chorus=nCh;
+  for(let cr=0;cr<nCh;cr++)cur.solo.bars.forEach((bar,bi)=>{
+    const barStart=start+(cr*cur.solo.bars.length+bi)*bpb*spb;
     const pat=COMP[Math.floor(rng()*COMP.length)];
     pat.forEach(bt=>{
-      const beatAbs=bt%4;
-      const ch=bar.chords[(beatAbs>=2&&bar.chords.length>1)?1:0];
+      const beatAbs=bt%bpb;
+      const ch=bar.chords[(beatAbs>=bpb/2&&bar.chords.length>1)?1:0];
       const v=voicingFor(ch,prevV);prevV=v;
       const len=(bt%1===0?0.9:0.55)*spb;
       pianoHit(ac,rb,barStart+tickToBeat(Math.round(beatAbs*6),sw)*spb,len,v,0.12);
@@ -135,14 +137,18 @@ function playAll(){
       for(let k=1;k<bpb;k++)hat(ac,rb,barStart+k*spb,0.07);
     }
   });
-  if(cur.playSolo!==false)buildAudioEvents(cur.solo,bpm,sw).forEach(e=>mel(ac,master,start+e.start,e.dur,e.midi,cur.tone||'flugel',e.vel,e.end));
+  if(cur.playSolo!==false){
+    const evs=buildAudioEvents(cur.solo,bpm,sw);
+    const blen=cur.solo.bars.length*bpb*spb;
+    for(let cr=0;cr<nCh;cr++)evs.forEach(e=>mel(ac,master,start+cr*blen+e.start,e.dur,e.midi,cur.tone||'flugel',e.vel,e.end));
+  }
   const chips=[...$('#chips').children];
   const totalBeats=cur.solo.bars.length*bpb;
   const loop=()=>{
     if(!cur.audio)return;
     const el=ac.currentTime-start;
-    chips.forEach((c,i)=>c.classList.toggle('lit',el>=0&&el<totalBeats*spb&&i===Math.floor(el/(bpb*spb))));
-    if(el>totalBeats*spb+1.2){stopAll();$('#btnPlay').textContent='▶ 재생';return}
+    chips.forEach((c,i)=>c.classList.toggle('lit',el>=0&&el<totalBeats*spb&&i===Math.floor(el/(bpb*spb))%cur.solo.bars.length));
+    if(el>totalBeats*(cur.audio.chorus||1)*spb+1.2){stopAll();$('#btnPlay').textContent='▶ 재생';return}
     cur.audio.raf=requestAnimationFrame(loop);
   };
   loop();

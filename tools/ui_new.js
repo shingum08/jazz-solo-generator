@@ -3,8 +3,7 @@
 const $=s=>document.querySelector(s);
 const KEYNAMES=['C','D♭','D','E♭','E','F','G♭','G','A♭','A','B♭','B'];
 const GRP={'스윙':'미디엄/업템포 스윙','블루스':'블루스 & 리듬 체인지','라틴':'보사노바 & 라틴','발라드':'재즈 발라드','모달':'모달·쿨·하드밥','비밥·왈츠':'비밥·왈츠·기타 필수곡','연습':'연습용 진행'};
-const cur={selProg:'blue-bossa',trUser:0,selDiff:2,selInst:'wind',selTrans:0,useLicks:true,useGroups:true,style:'all',tone:'flugel',solo:null,abc:'',audio:null,saved:[],view:'both',playSolo:true,heads:{}};
-try{cur.heads=JSON.parse(localStorage.getItem('jsg-heads')||'{}')}catch(e){cur.heads={}}
+const cur={selProg:'blue-bossa',trUser:0,selDiff:2,selInst:'wind',selTrans:0,useLicks:true,useGroups:true,style:'all',tone:'flugel',solo:null,abc:'',audio:null,saved:[],view:'both',playSolo:true,chorus:2};
 
 /* ── 곡 선택 박스 + 검색 ── */
 const songSel=$('#songSel');
@@ -57,6 +56,7 @@ $('#btnTrDn').onclick=()=>shiftKey(-1);
 
 /* ── 표시 · 재생 모드 ── */
 $('#viewSel').onchange=e=>{cur.view=e.target.value;if(cur.solo)renderSheet()};
+$('#chorusSel').onchange=e=>{cur.chorus=+e.target.value;if(cur.audio){stopAll();playAll();$('#btnPlay').textContent='■ 정지'}};
 $('#playSel').onchange=e=>{cur.playSolo=e.target.value==='1';if(cur.audio){stopAll();playAll();$('#btnPlay').textContent='■ 정지'}};
 
 /* ── 난이도 ── */
@@ -101,7 +101,7 @@ function applyView(){
   cur.solo=transposeSolo(edited,tr,cur.selInst,cur.shift);
   setSpelling(prog,mod12(songKeyPc()+wt),tr+wt);
   cur.abc=toAbc(cur.solo,+$('#bpm').value,wt);
-  cur.headAbc=headAbc(prog,tr+wt);
+  cur.chartAbc=headAbc(prog,tr+wt);
   setSpelling(prog,songKeyPc(),tr);
   renderSheet();
 }
@@ -127,10 +127,6 @@ function headAbc(prog,tr){
   rows[rows.length-1]=rows[rows.length-1].replace(/\|$/,'|]');
   return 'X:2\nM:'+bpb+'/4\nL:1/4\nK:'+K+'\nV:1 style=rhythm\n'+rows.join('\n');
 }
-function melodyAbc(prog,body){
-  const K=abcKey(prog,0);
-  return 'X:3\nM:'+(prog.bpb||4)+'/4\nL:1/8\nK:'+K+'\n'+body;
-}
 function regen(){if(cur.solo)gen(false)}
 songSel.onchange=()=>{
   cur.selProg=songSel.value;cur.trUser=0;updTr();
@@ -147,16 +143,11 @@ function renderSheet(){
   $('#paperTitle').textContent=s.name;
   const kOrig=keyLabel(origKey(),0),kNow=keyLabel(songKeyPc(),cur.trUser);
   $('#paperMeta').textContent=(cur.trUser?kNow+' (원곡 '+kOrig+')':kNow)+(cur.selTrans?' · B♭ 악기 기보':'')+' · '+s.bpm+' BPM 기본 · '+STYLE_DATA.profiles[cur.style].label+' · 난이도 '+cur.selDiff+' · '+INSTRUMENTS.find(x=>x.id===cur.selInst).name;
-  const tr=cur.trUser+(cur.selTrans||0);
-  $('#headWrap').style.display=cur.view==='solo'?'none':'block';
-  $('#soloWrap').style.display=cur.view==='head'?'none':'block';
-  const mel=cur.heads[cur.selProg];
-  $('#headLabel').textContent=mel?'HEAD · 내가 입력한 멜로디':'HEAD · 리드시트 (형식 + 코드 차트)';
-  $('#melInput').value=mel||'';
+  $('#chartWrap').style.display=cur.view==='solo'?'none':'block';
+  $('#soloWrap').style.display=cur.view==='chart'?'none':'block';
   if(cur.view!=='solo'&&typeof ABCJS!=='undefined'){
-    const hs=$('#headStaff');hs.innerHTML='';
-    if(mel)ABCJS.renderAbc(hs,melodyAbc(s,mel),{responsive:'resize',visualTranspose:tr,paddingtop:0,paddingbottom:0,paddingleft:0,paddingright:0});
-    else ABCJS.renderAbc(hs,cur.headAbc,{responsive:'resize',paddingtop:0,paddingbottom:0,paddingleft:0,paddingright:0});
+    const cs=$('#chartStaff');cs.innerHTML='';
+    ABCJS.renderAbc(cs,cur.chartAbc,{responsive:'resize',paddingtop:0,paddingbottom:0,paddingleft:0,paddingright:0});
   }
   const box=$('#staff');
   if(typeof ABCJS!=='undefined'){
@@ -297,13 +288,7 @@ function popAct(act){
   applyView();
 }
 
-$('#melSave').onclick=()=>{
-  const v=$('#melInput').value.trim();
-  if(v)cur.heads[cur.selProg]=v;else delete cur.heads[cur.selProg];
-  try{localStorage.setItem('jsg-heads',JSON.stringify(cur.heads))}catch(e){}
-  if(cur.soloBase)renderSheet();
-};
-$('#melClear').onclick=()=>{$('#melInput').value='';$('#melSave').onclick()};
+
 $('#btnPlay').onclick=()=>{
   if($('#btnPlay').textContent.indexOf('정지')>=0){stopAll();$('#btnPlay').textContent='▶ 재생'}
   else if(typeof playAll==='function'){playAll();$('#btnPlay').textContent='■ 정지'}

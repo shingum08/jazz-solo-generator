@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>즉흥 악보 생성기 v0.15 — 화성 분석 · 타깃음 라인 · 연주자 스타일</title>
+<title>즉흥 악보 생성기 v0.17 — 화성 분석 · 타깃음 라인 · 연주자 스타일</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Sans+KR:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
@@ -15,7 +15,7 @@
 </script>
 <script>
 /*__PLAYBACK_START__*/
-/* ── Web Audio 재생 엔진 v0.15 ──
+/* ── Web Audio 재생 엔진 v0.17 ──
    · 스윙비: WJD 실측(템포별 중앙값 120BPM 0.63 → 280BPM 0.54) + 연주자 프로필 보정
    · 아티큘레이션: 붙임줄 음은 한 소리로, 엇박 8분 살짝 강조(비밥 악센트), 라인 속 낮은 음은 고스트,
      프레이즈 끝음은 길게 + 비브라토, 레가토 겹침
@@ -531,7 +531,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
 .editpop .popbtns button:hover{border-color:var(--brass);color:var(--brass-deep)}
 .notehead-sel{fill:var(--rose)!important;stroke:var(--rose)!important}
 
-/* v0.15 툴바 · 드롭다운 */
+/* v0.17 툴바 · 드롭다운 */
 .toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin:12px 0 12px}
 .tb{display:flex;flex-direction:column;gap:5px;min-width:130px}
 .tb.grow{flex:1 1 220px}
@@ -558,7 +558,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
 <body>
 <header class="site">
   <div class="wrap">
-    <div class="eyebrow">Concept Prototype · v0.15</div>
+    <div class="eyebrow">Concept Prototype · v0.17</div>
     <h1>즉흥 악보 생성기</h1>
     <p class="sub">리얼북 필수 <b style="color:var(--brass);font-weight:500">357곡</b>의 코드 진행 위에 매번 새로운 연습용 솔로를 만듭니다. 곡 검색 · 아티스트 스타일 · 반음 단위 조 변환을 지원합니다.</p>
   </div>
@@ -574,7 +574,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
     <div class="tb"><label>재생</label><select id="playSel"><option value="1" selected>솔로 + 반주</option><option value="0">반주만</option></select></div>
     <div class="tb"><label>코러스</label><select id="chorusSel"><option value="1">1코러스</option><option value="2" selected>2코러스</option><option value="3">3코러스</option><option value="4">4코러스</option></select></div>
     <div class="tb"><label>난이도</label><select id="diffSel"><option value="1">1 · 입문</option><option value="2" selected>2 · 중급</option><option value="3">3 · 심화</option></select></div>
-    <div class="tb btns"><button class="btn primary" id="btnGen">악보 생성</button><button class="btn play" id="btnPlay" disabled>▶ 재생</button><button class="btn ghost" id="btnSave" disabled>♡ 저장</button></div>
+    <div class="tb btns"><button class="btn primary" id="btnGen">악보 생성</button><button class="btn play" id="btnPlay" disabled>▶ 재생</button><button class="btn ghost" id="btnSave" disabled>♡ 저장</button><button class="btn ghost" id="btnFeedback" title="버그·개선 제안을 GitHub 이슈로 보냅니다">💬 피드백</button></div>
   </div>
   <div class="paper" id="paper">
     <div class="paper-head">
@@ -620,8 +620,8 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
 
 <section class="how">
   <div class="wrap">
-    <h2>v0.15 엔진이 한 소절을 만드는 순서</h2>
-    <p class="lead">v0.11까지는 "지금 이 코드에 어울리는 음"을 한 음씩 확률로 골랐습니다. 이 방식에서는 라인에 방향이 생기지 않습니다. 실제 연주자는 <b style="color:var(--txt)">다음 코드에서 어디에 도착할지</b>를 먼저 정하고 그쪽으로 걸어갑니다. v0.15는 이 순서를 그대로 따릅니다.</p>
+    <h2>v0.17 엔진이 한 소절을 만드는 순서</h2>
+    <p class="lead">v0.11까지는 "지금 이 코드에 어울리는 음"을 한 음씩 확률로 골랐습니다. 이 방식에서는 라인에 방향이 생기지 않습니다. 실제 연주자는 <b style="color:var(--txt)">다음 코드에서 어디에 도착할지</b>를 먼저 정하고 그쪽으로 걸어갑니다. v0.17는 이 순서를 그대로 따릅니다.</p>
     <div class="layers">
       <div class="layer"><div class="n">STEP 1 · 화성 분석</div><h4>코드의 기능 읽기</h4><p>D7→Gm이면 "단조로 가는 Ⅴ" → ♭9·♭13 사용. G♭7→F면 트라이톤 대리 → 리디안 ♭7. 해결되는 maj7은 Ⅰ, Ⅳ 자리는 리디안. 같은 7th 코드라도 가는 곳에 따라 스케일이 달라집니다.</p></div>
       <div class="layer"><div class="n">STEP 2 · 호흡</div><h4>프레이즈·쉼 계획</h4><p>연주자별 실측 프레이즈 길이와 쉼 길이 분포로 호흡을 정하고, 8마디 형식 경계 직전에 종지하도록 맞춥니다. 목관은 최대 2마디마다 숨을 쉽니다.</p></div>
@@ -646,8 +646,8 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
 </footer>
 
 <script id="engine">
-/* ═══════════ 음악 엔진 v0.15 (UI와 분리 · 순수 로직) ═══════════
-   v0.11 → v0.15 핵심 변경
+/* ═══════════ 음악 엔진 v0.17 (UI와 분리 · 순수 로직) ═══════════
+   v0.11 → v0.17 핵심 변경
    ① 화성 분석: 코드 종류만이 아니라 "기능"을 읽는다 (Ⅱ·Ⅴ→장조/단조·트라이톤 대리·Ⅳ 리디안·토닉 마이너)
       → 코드마다 코드-스케일·텐션·가이드톤(3·7음)을 따로 배정
    ② 타깃음 라인: 코드가 바뀌는 다운비트에 가이드톤을 먼저 정하고, 그 앞 1~2음을
@@ -1355,7 +1355,7 @@ STYLE_DATA.cells=STYLE_DATA.cells.concat(CURATED_CELLS.map((c,i)=>Object.assign(
 </script>
 
 <script>
-/* ═══════════ UI · 재생 · 저장 (v0.14) ═══════════ */
+/* ═══════════ UI · 재생 · 저장 (v0.17) ═══════════ */
 'use strict';
 const $=s=>document.querySelector(s);
 const KEYNAMES=['C','D♭','D','E♭','E','F','G♭','G','A♭','A','B♭','B'];

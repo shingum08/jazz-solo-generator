@@ -88,12 +88,13 @@ function voicingFor(ch,prevV){
   }
   return best?best.v:[r+52,r+56,r+59,r+62];
 }
-function playAll(){
+function playAllInner(){
   stopAll();
   const bpm=+$('#bpm').value;
   const bpb=cur.solo.bpb||4;
   const sw=swingRatio(bpm,cur.style);
   const ac=new (window.AudioContext||window.webkitAudioContext)();
+  if(ac.resume)ac.resume();  /* 자동재생 정책: suspended 해제 */
   const master=ac.createGain();master.gain.value=0.75;
   const comp=ac.createDynamicsCompressor();
   master.connect(comp);comp.connect(ac.destination);
@@ -110,7 +111,7 @@ function playAll(){
   /* 컴핑: 찰스턴·푸시(4&→1)·2&·4박 등 싱커페이션 — 마디마다 확률적으로 고른다 */
   const COMP=bpb===3?[[0,1+sw],[0+sw,2],[1,2+sw],[0,1]]:(bpb===5?[[0,2+sw],[1+sw,3],[0,3+sw],[2,4],[1,4]]:[[0,1+sw],[0+sw,2+sw],[1+sw,3],[0,2+sw],[1,3+sw],[sw,3]]);
   let prevV=null;
-  const nCh=Math.max(1,Math.min(6,+($('#chorusSel')?$('#chorusSel').value:1)||1));
+  const nCh=Math.max(1,Math.min(6,(()=>{const v=$('#chorusSel')?+$('#chorusSel').value:1;return isFinite(v)&&v>=1?v:1})()));
   cur.audio.chorus=nCh;
   for(let cr=0;cr<nCh;cr++)cur.solo.bars.forEach((bar,bi)=>{
     const barStart=start+(cr*cur.solo.bars.length+bi)*bpb*spb;
@@ -144,11 +145,12 @@ function playAll(){
   }
   const chips=[...$('#chips').children];
   const totalBeats=cur.solo.bars.length*bpb;
+  cur.audio.endAt=start+nCh*cur.solo.bars.length*bpb*spb;
   const loop=()=>{
     if(!cur.audio)return;
     const el=ac.currentTime-start;
     chips.forEach((c,i)=>c.classList.toggle('lit',el>=0&&el<totalBeats*spb&&i===Math.floor(el/(bpb*spb))%cur.solo.bars.length));
-    if(el>totalBeats*(cur.audio.chorus||1)*spb+1.2){stopAll();$('#btnPlay').textContent='▶ 재생';return}
+    if(el>cur.audio.endAt-start+1.2){stopAll();$('#btnPlay').textContent='▶ 재생';return}
     cur.audio.raf=requestAnimationFrame(loop);
   };
   loop();
@@ -169,8 +171,8 @@ function pianoHit(ac,out,when,dur,midis,vol){
     const w=when+k*0.006;  /* 살짝 롤 */
     g.gain.setValueAtTime(0.0001,w);
     g.gain.exponentialRampToValueAtTime(vol,w+0.012);
-    g.gain.exponentialRampToValueAtTime(vol*0.45,w+0.18);
-    g.gain.exponentialRampToValueAtTime(0.001,w+dur);
+    g.gain.exponentialRampToValueAtTime(vol*0.45,Math.max(w+0.18,w+0.013));
+    g.gain.exponentialRampToValueAtTime(0.001,Math.max(w+dur,w+0.181));
     o.connect(f);o2.connect(g2);g2.connect(f);f.connect(g);g.connect(out);
     o.start(w);o.stop(w+dur+0.05);o2.start(w);o2.stop(w+dur+0.05);
   });
@@ -186,8 +188,8 @@ function bass(ac,out,when,dur,midi,vel){
   o2.connect(g2);g2.connect(fl);o.connect(fl);fl.connect(g);g.connect(out);
   g.gain.setValueAtTime(0.0001,when);
   g.gain.exponentialRampToValueAtTime(0.62*vel,when+0.01);
-  g.gain.exponentialRampToValueAtTime(0.3*vel,when+Math.min(0.14,dur*0.6));
-  g.gain.exponentialRampToValueAtTime(0.001,when+dur);
+  g.gain.exponentialRampToValueAtTime(0.3*vel,Math.max(when+Math.min(0.14,dur*0.6),when+0.011));
+  g.gain.exponentialRampToValueAtTime(0.001,Math.max(when+dur,when+Math.min(0.14,dur*0.6)+0.001));
   o.start(when);o.stop(when+dur+0.05);o2.start(when);o2.stop(when+dur+0.05);
 }
 function kick(ac,out,when,vol){
@@ -253,11 +255,12 @@ function mel(ac,out,when,dur,midi,tone,vel,isEnd){
   if(tone!=='default'&&dur>0.3)oscs.forEach(([o])=>{o.frequency.setValueAtTime(fr*0.985,when);o.frequency.exponentialRampToValueAtTime(fr,when+0.05)});
   const peak=0.24*vel;
   const atk=tone==='default'?0.012:(tone==='clarinet'?0.022:0.03);
+  const t1=when+atk,t2=when+atk+0.06,t3=when+Math.max(atk+0.07,dur-0.06),t4=when+dur+(isEnd?0.12:0.03);
   g.gain.setValueAtTime(0.0001,when);
-  g.gain.exponentialRampToValueAtTime(peak,when+atk);
-  g.gain.exponentialRampToValueAtTime(peak*0.82,when+atk+0.06);
-  g.gain.setValueAtTime(peak*0.82,when+Math.max(atk+0.07,dur-0.06));
-  g.gain.exponentialRampToValueAtTime(0.001,when+dur+(isEnd?0.12:0.03));
+  g.gain.exponentialRampToValueAtTime(peak,t1);
+  g.gain.exponentialRampToValueAtTime(peak*0.82,Math.max(t2,t1+0.001));
+  g.gain.setValueAtTime(peak*0.82,Math.max(t3,t2+0.001));
+  g.gain.exponentialRampToValueAtTime(0.001,Math.max(t4,t3+0.001));
   oscs.forEach(([o,vol])=>{
     const vg=ac.createGain();vg.gain.value=vol;
     o.connect(vg);vg.connect(f);
@@ -271,5 +274,15 @@ function stopAll(){
     try{cur.audio.ac.close()}catch(e){}
     cur.audio=null;
     [...$('#chips').children].forEach(c=>c.classList.remove('lit'));
+  }
+}
+
+/* ── 재생 예외 복구: 조용한 실패 대신 화면에 원인을 표시 ── */
+function playAll(){
+  try{playAllInner()}
+  catch(e){
+    console.error('재생 오류:',e);
+    stopAll();$('#btnPlay').textContent='▶ 재생';
+    try{$('#paperTitle').textContent='⚠ 재생 오류: '+e.message}catch(_){}
   }
 }

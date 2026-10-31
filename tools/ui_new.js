@@ -289,6 +289,15 @@ function popAct(act){
 }
 
 
+
+/* ── 피드백: GitHub 이슈 자동 작성(곡·설정·환경 자동 첨부) ── */
+$('#btnFeedback').onclick=()=>{
+  const msg=prompt('피드백 내용을 입력하세요 (곡·설정·환경은 자동으로 첨부됩니다)');
+  if(!msg)return;
+  const so=$('#songSel')&&$('#songSel').selectedOptions&&$('#songSel').selectedOptions[0]?$('#songSel').selectedOptions[0].textContent:'미생성';
+  const info=['버전: v0.17','곡: '+so,'시드: '+(cur.seed||'-'),'BPM: '+$('#bpm').value,'코러스: '+($('#chorusSel')?$('#chorusSel').value:'-'),'조 이조: '+cur.selTrans,'악기/톤: '+cur.selInst+'/'+cur.tone,'브라우저: '+navigator.userAgent,'날짜: '+new Date().toISOString()].join('\n');
+  window.open('https://github.com/shingum08/jazz-solo-generator/issues/new?title='+encodeURIComponent('[피드백] '+msg.slice(0,40))+'&body='+encodeURIComponent(msg+'\n\n--- 자동 정보 ---\n'+info),'_blank');
+};
 $('#btnPlay').onclick=()=>{
   if($('#btnPlay').textContent.indexOf('정지')>=0){stopAll();$('#btnPlay').textContent='▶ 재생'}
   else if(typeof playAll==='function'){playAll();$('#btnPlay').textContent='■ 정지'}

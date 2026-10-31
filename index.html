@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>즉흥 악보 생성기 v0.15 — 화성 분석 · 타깃음 라인 · 연주자 스타일</title>
+<title>즉흥 악보 생성기 v0.17 — 화성 분석 · 타깃음 라인 · 연주자 스타일</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Sans+KR:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
@@ -104,12 +104,13 @@ function voicingFor(ch,prevV){
   }
   return best?best.v:[r+52,r+56,r+59,r+62];
 }
-function playAll(){
+function playAllInner(){
   stopAll();
   const bpm=+$('#bpm').value;
   const bpb=cur.solo.bpb||4;
   const sw=swingRatio(bpm,cur.style);
   const ac=new (window.AudioContext||window.webkitAudioContext)();
+  if(ac.resume)ac.resume();  /* 자동재생 정책: suspended 해제 */
   const master=ac.createGain();master.gain.value=0.75;
   const comp=ac.createDynamicsCompressor();
   master.connect(comp);comp.connect(ac.destination);
@@ -126,7 +127,7 @@ function playAll(){
   /* 컴핑: 찰스턴·푸시(4&→1)·2&·4박 등 싱커페이션 — 마디마다 확률적으로 고른다 */
   const COMP=bpb===3?[[0,1+sw],[0+sw,2],[1,2+sw],[0,1]]:(bpb===5?[[0,2+sw],[1+sw,3],[0,3+sw],[2,4],[1,4]]:[[0,1+sw],[0+sw,2+sw],[1+sw,3],[0,2+sw],[1,3+sw],[sw,3]]);
   let prevV=null;
-  const nCh=Math.max(1,Math.min(6,+($('#chorusSel')?$('#chorusSel').value:1)||1));
+  const nCh=Math.max(1,Math.min(6,(()=>{const v=$('#chorusSel')?+$('#chorusSel').value:1;return isFinite(v)&&v>=1?v:1})()));
   cur.audio.chorus=nCh;
   for(let cr=0;cr<nCh;cr++)cur.solo.bars.forEach((bar,bi)=>{
     const barStart=start+(cr*cur.solo.bars.length+bi)*bpb*spb;
@@ -160,11 +161,12 @@ function playAll(){
   }
   const chips=[...$('#chips').children];
   const totalBeats=cur.solo.bars.length*bpb;
+  cur.audio.endAt=start+nCh*cur.solo.bars.length*bpb*spb;
   const loop=()=>{
     if(!cur.audio)return;
     const el=ac.currentTime-start;
     chips.forEach((c,i)=>c.classList.toggle('lit',el>=0&&el<totalBeats*spb&&i===Math.floor(el/(bpb*spb))%cur.solo.bars.length));
-    if(el>totalBeats*(cur.audio.chorus||1)*spb+1.2){stopAll();$('#btnPlay').textContent='▶ 재생';return}
+    if(el>cur.audio.endAt-start+1.2){stopAll();$('#btnPlay').textContent='▶ 재생';return}
     cur.audio.raf=requestAnimationFrame(loop);
   };
   loop();
@@ -185,8 +187,8 @@ function pianoHit(ac,out,when,dur,midis,vol){
     const w=when+k*0.006;  /* 살짝 롤 */
     g.gain.setValueAtTime(0.0001,w);
     g.gain.exponentialRampToValueAtTime(vol,w+0.012);
-    g.gain.exponentialRampToValueAtTime(vol*0.45,w+0.18);
-    g.gain.exponentialRampToValueAtTime(0.001,w+dur);
+    g.gain.exponentialRampToValueAtTime(vol*0.45,Math.max(w+0.18,w+0.013));
+    g.gain.exponentialRampToValueAtTime(0.001,Math.max(w+dur,w+0.181));
     o.connect(f);o2.connect(g2);g2.connect(f);f.connect(g);g.connect(out);
     o.start(w);o.stop(w+dur+0.05);o2.start(w);o2.stop(w+dur+0.05);
   });
@@ -202,8 +204,8 @@ function bass(ac,out,when,dur,midi,vel){
   o2.connect(g2);g2.connect(fl);o.connect(fl);fl.connect(g);g.connect(out);
   g.gain.setValueAtTime(0.0001,when);
   g.gain.exponentialRampToValueAtTime(0.62*vel,when+0.01);
-  g.gain.exponentialRampToValueAtTime(0.3*vel,when+Math.min(0.14,dur*0.6));
-  g.gain.exponentialRampToValueAtTime(0.001,when+dur);
+  g.gain.exponentialRampToValueAtTime(0.3*vel,Math.max(when+Math.min(0.14,dur*0.6),when+0.011));
+  g.gain.exponentialRampToValueAtTime(0.001,Math.max(when+dur,when+Math.min(0.14,dur*0.6)+0.001));
   o.start(when);o.stop(when+dur+0.05);o2.start(when);o2.stop(when+dur+0.05);
 }
 function kick(ac,out,when,vol){
@@ -269,11 +271,12 @@ function mel(ac,out,when,dur,midi,tone,vel,isEnd){
   if(tone!=='default'&&dur>0.3)oscs.forEach(([o])=>{o.frequency.setValueAtTime(fr*0.985,when);o.frequency.exponentialRampToValueAtTime(fr,when+0.05)});
   const peak=0.24*vel;
   const atk=tone==='default'?0.012:(tone==='clarinet'?0.022:0.03);
+  const t1=when+atk,t2=when+atk+0.06,t3=when+Math.max(atk+0.07,dur-0.06),t4=when+dur+(isEnd?0.12:0.03);
   g.gain.setValueAtTime(0.0001,when);
-  g.gain.exponentialRampToValueAtTime(peak,when+atk);
-  g.gain.exponentialRampToValueAtTime(peak*0.82,when+atk+0.06);
-  g.gain.setValueAtTime(peak*0.82,when+Math.max(atk+0.07,dur-0.06));
-  g.gain.exponentialRampToValueAtTime(0.001,when+dur+(isEnd?0.12:0.03));
+  g.gain.exponentialRampToValueAtTime(peak,t1);
+  g.gain.exponentialRampToValueAtTime(peak*0.82,Math.max(t2,t1+0.001));
+  g.gain.setValueAtTime(peak*0.82,Math.max(t3,t2+0.001));
+  g.gain.exponentialRampToValueAtTime(0.001,Math.max(t4,t3+0.001));
   oscs.forEach(([o,vol])=>{
     const vg=ac.createGain();vg.gain.value=vol;
     o.connect(vg);vg.connect(f);
@@ -290,6 +293,15 @@ function stopAll(){
   }
 }
 
+/* ── 재생 예외 복구: 조용한 실패 대신 화면에 원인을 표시 ── */
+function playAll(){
+  try{playAllInner()}
+  catch(e){
+    console.error('재생 오류:',e);
+    stopAll();$('#btnPlay').textContent='▶ 재생';
+    try{$('#paperTitle').textContent='⚠ 재생 오류: '+e.message}catch(_){}
+  }
+}
 </script>
 
 <style>
@@ -535,7 +547,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
 .editpop .popbtns button:hover{border-color:var(--brass);color:var(--brass-deep)}
 .notehead-sel{fill:var(--rose)!important;stroke:var(--rose)!important}
 
-/* v0.15 툴바 · 드롭다운 */
+/* v0.17 툴바 · 드롭다운 */
 .toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin:12px 0 12px}
 .tb{display:flex;flex-direction:column;gap:5px;min-width:130px}
 .tb.grow{flex:1 1 220px}
@@ -562,7 +574,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
 <body>
 <header class="site">
   <div class="wrap">
-    <div class="eyebrow">Concept Prototype · v0.15</div>
+    <div class="eyebrow">Concept Prototype · v0.17</div>
     <h1>즉흥 악보 생성기</h1>
     <p class="sub">리얼북 필수 <b style="color:var(--brass);font-weight:500">357곡</b>의 코드 진행 위에 매번 새로운 연습용 솔로를 만듭니다. 곡 검색 · 아티스트 스타일 · 반음 단위 조 변환을 지원합니다.</p>
   </div>
@@ -578,7 +590,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
     <div class="tb"><label>재생</label><select id="playSel"><option value="1" selected>솔로 + 반주</option><option value="0">반주만</option></select></div>
     <div class="tb"><label>코러스</label><select id="chorusSel"><option value="1">1코러스</option><option value="2" selected>2코러스</option><option value="3">3코러스</option><option value="4">4코러스</option></select></div>
     <div class="tb"><label>난이도</label><select id="diffSel"><option value="1">1 · 입문</option><option value="2" selected>2 · 중급</option><option value="3">3 · 심화</option></select></div>
-    <div class="tb btns"><button class="btn primary" id="btnGen">악보 생성</button><button class="btn play" id="btnPlay" disabled>▶ 재생</button><button class="btn ghost" id="btnSave" disabled>♡ 저장</button></div>
+    <div class="tb btns"><button class="btn primary" id="btnGen">악보 생성</button><button class="btn play" id="btnPlay" disabled>▶ 재생</button><button class="btn ghost" id="btnSave" disabled>♡ 저장</button><button class="btn ghost" id="btnFeedback" title="버그·개선 제안을 GitHub 이슈로 보냅니다">💬 피드백</button></div>
   </div>
   <div class="paper" id="paper">
     <div class="paper-head">
@@ -624,8 +636,8 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
 
 <section class="how">
   <div class="wrap">
-    <h2>v0.15 엔진이 한 소절을 만드는 순서</h2>
-    <p class="lead">v0.11까지는 "지금 이 코드에 어울리는 음"을 한 음씩 확률로 골랐습니다. 이 방식에서는 라인에 방향이 생기지 않습니다. 실제 연주자는 <b style="color:var(--txt)">다음 코드에서 어디에 도착할지</b>를 먼저 정하고 그쪽으로 걸어갑니다. v0.15는 이 순서를 그대로 따릅니다.</p>
+    <h2>v0.17 엔진이 한 소절을 만드는 순서</h2>
+    <p class="lead">v0.11까지는 "지금 이 코드에 어울리는 음"을 한 음씩 확률로 골랐습니다. 이 방식에서는 라인에 방향이 생기지 않습니다. 실제 연주자는 <b style="color:var(--txt)">다음 코드에서 어디에 도착할지</b>를 먼저 정하고 그쪽으로 걸어갑니다. v0.17는 이 순서를 그대로 따릅니다.</p>
     <div class="layers">
       <div class="layer"><div class="n">STEP 1 · 화성 분석</div><h4>코드의 기능 읽기</h4><p>D7→Gm이면 "단조로 가는 Ⅴ" → ♭9·♭13 사용. G♭7→F면 트라이톤 대리 → 리디안 ♭7. 해결되는 maj7은 Ⅰ, Ⅳ 자리는 리디안. 같은 7th 코드라도 가는 곳에 따라 스케일이 달라집니다.</p></div>
       <div class="layer"><div class="n">STEP 2 · 호흡</div><h4>프레이즈·쉼 계획</h4><p>연주자별 실측 프레이즈 길이와 쉼 길이 분포로 호흡을 정하고, 8마디 형식 경계 직전에 종지하도록 맞춥니다. 목관은 최대 2마디마다 숨을 쉽니다.</p></div>
@@ -2183,7 +2195,7 @@ RAW_SONGS.slice(-12).forEach(s=>{SONGDB[s.id]={name:s.n,c:s.c,key:s.k,bpm:s.bpm,
 </script>
 
 <script>
-/* ═══════════ UI · 재생 · 저장 (v0.14) ═══════════ */
+/* ═══════════ UI · 재생 · 저장 (v0.17) ═══════════ */
 'use strict';
 const $=s=>document.querySelector(s);
 const KEYNAMES=['C','D♭','D','E♭','E','F','G♭','G','A♭','A','B♭','B'];

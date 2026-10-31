@@ -1,6 +1,6 @@
 /* ── 리얼북 1권 추가 수록 (v0.15) ──
    코드 진행만 수록 — 원곡 멜로디·가사 없음. 진행은 "일반적으로 연주되는 스탠다드" 기준이며
-   판본(리얼북 판·연주자별 악보)에 따라 세부가 다를 수 있다. */
+   판본(리얼북 판·연주자별 악보)에 따라 세부가 다를 수 있다. RAW_SONGS.push(
 {id:'afternoon-in-paris',n:'Afternoon In Paris',c:'스윙',k:0,bpm:140,f:['AABA',8],
  ch:'Cmaj7|Bm7b5 E7|Am7|D7b9|Dm7|G7|Cmaj7|Dm7 G7|Fmaj7|Em7 A7|Dm7|G7|Cmaj7|A7|Dm7 G7|Cmaj7|Cmaj7|Bm7b5 E7|Am7|D7b9|Dm7|G7|Cmaj7|Dm7 G7|Fm7|Bb7|Ebmaj7|Ab7|Dbmaj7|Dbm7 Gb7|Cmaj7|Dm7 G7'},
 {id:'airegin',n:'Airegin',c:'비밥·왈츠',k:7,bpm:200,f:['AABA',8],
@@ -221,3 +221,5 @@
  ch:'Gm6|A7b9|Dm7|Gm6|Bbmaj7|Am7b5 D7b9|Gm6|D7b9|Gm6|Bb7|Ebmaj7|Am7b5 D7b9|Gm6|Cm7 F7|Bbmaj7|Eb7|Am7b5|D7b9|Gm6|D7b9|Gm6|A7b9|Dm7 G7|Cm7 F7|Bbmaj7|Am7b5 D7b9|Gm6|D7b9|Gm6|Cm7 F7|Gm6|D7b9'},
 {id:'you-are-too-beautiful',n:'You Are Too Beautiful',c:'발라드',k:8,bpm:75,f:['AB',8],
  ch:'Abmaj7|Db7|Bbm7|Ebm7 Ab7|Dbmaj7|C7b9|Fm7|Bb7|Ebmaj7|Ab7|Dbmaj7|Gb7|C7b9|F7b9|Bbm7|Abmaj7'}
+);
+RAW_SONGS.slice(-110).forEach(s=>{SONGDB[s.id]={name:s.n,c:s.c,key:s.k,bpm:s.bpm,bpb:s.m||4,form:{phrase:s.f[1],sections:s.f[0]},bars:s.ch.split("|").map(b=>b.trim().split(/\s+/).map(parseCh))}});

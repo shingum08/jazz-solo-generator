@@ -1,4 +1,4 @@
-/* ── 리얼북 3권·6권 1차 수록 (v0.15) ── */
+/* ── 리얼북 3권·6권 1차 수록 (v0.15) ── RAW_SONGS.push(
 {id:'east-of-the-sun',n:'East Of The Sun (And West Of The Moon)',c:'스윙',k:5,bpm:140,f:['AABA',8],
  ch:'Fmaj7|D7|Gm7|C7|Fmaj7|D7|Gm7 C7|F6|Fmaj7|D7|Gm7|C7|Fmaj7|D7|Gm7 C7|F6|Am7|D7|Gm7|C7|Fmaj7|D7|Gm7 C7|F6|Fmaj7|D7|Gm7|C7|Fmaj7|D7|Gm7 C7|F6'},
 {id:'indian-summer',n:'Indian Summer',c:'발라드',k:8,bpm:90,f:['AB',8],
@@ -35,3 +35,5 @@
  ch:'Dm7|A7|Dm7|A7b9|Dm7|Bbmaj7|A7|Dm7|Gm7|A7|Dm7|A7b9|Dm7|Bbmaj7|A7|Dm7|Dm7|E7|Am7|D7|Gm7|A7|Dm7|A7b9|Dm7|Bbmaj7|Gm7 A7|Dm7|A7b9|Dm7|A7b9|Dm7'},
 {id:'you-stepped-out-of-a-dream',n:'You Stepped Out Of A Dream',c:'스윙',k:0,bpm:150,f:['AABA',8],
  ch:'Cmaj7|Dm7 G7|Em7 A7|Dm7 G7|Cmaj7|A7|Dm7|G7|Cmaj7|Dm7 G7|Em7 A7|Dm7 G7|Cmaj7|A7|Dm7|G7|D7|G7|C7|F7|Cmaj7|A7|Dm7 G7|C6|Cmaj7|Dm7 G7|Em7 A7|Dm7 G7|Cmaj7|A7|Dm7|G7'}
+);
+RAW_SONGS.slice(-18).forEach(s=>{SONGDB[s.id]={name:s.n,c:s.c,key:s.k,bpm:s.bpm,bpb:s.m||4,form:{phrase:s.f[1],sections:s.f[0]},bars:s.ch.split("|").map(b=>b.trim().split(/\s+/).map(parseCh))}});

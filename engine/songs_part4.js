@@ -1,4 +1,4 @@
-/* ── 리얼북 2권 추가 수록 (v0.15, 1차) ── */
+/* ── 리얼북 2권 추가 수록 (v0.15, 1차) ── RAW_SONGS.push(
 {id:'ablution',n:'Ablution',c:'비밥·왈츠',k:7,bpm:200,f:['AB',8],
  ch:'Bmaj7|D7|Gmaj7|Bb7|Ebmaj7|Am7b5|D7|Gmaj7|Bb7|Ebmaj7|Am7|D7|Gmaj7|Bbm7 Eb7|Am7 D7|Gmaj7'},
 {id:'birks-works',n:"Birk's Works",c:'블루스',k:7,bpm:120,f:['AB',8],
@@ -61,3 +61,5 @@
  ch:'Bbmaj7|Ebmaj7|Am7b5 D7b9|Gm7|Cm7 F7|Bbmaj7|Cm7 F7|Bbmaj7|Bbmaj7|Ebmaj7|Am7b5 D7b9|Gm7|Cm7 F7|Bbmaj7|F7|Bbmaj7'},
 {id:'willow-weep-for-me',n:'Willow Weep For Me',c:'발라드',k:0,bpm:80,f:['AB',8],
  ch:'Cmaj7|Cmaj7|E7|E7|Am7|Am7|D7|D7|Dm7|G7|Em7|A7|Dm7|G7|Cmaj7|Cmaj7|Cmaj7|Cmaj7|E7|E7|Am7|Am7|D7|D7|Dm7|G7|Em7|A7|Dm7|G7|Cmaj7|Cmaj7'}
+);
+RAW_SONGS.slice(-31).forEach(s=>{SONGDB[s.id]={name:s.n,c:s.c,key:s.k,bpm:s.bpm,bpb:s.m||4,form:{phrase:s.f[1],sections:s.f[0]},bars:s.ch.split("|").map(b=>b.trim().split(/\s+/).map(parseCh))}});
